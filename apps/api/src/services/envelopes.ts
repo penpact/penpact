@@ -4,6 +4,7 @@ import { generateSigningToken } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { EnvelopeCreateInput } from '../schemas.js';
 import { requireDraftEnvelope } from './access.js';
+import { sendSigningInvite } from './email.js';
 import { recordEvent } from './events.js';
 
 export interface RequestContext {
@@ -170,7 +171,7 @@ export async function sendEnvelope(
   envelopeId: string,
   ctx: RequestContext,
 ): Promise<EnvelopeResponse> {
-  await requireDraftEnvelope(db, userId, envelopeId);
+  const env = await requireDraftEnvelope(db, userId, envelopeId);
 
   const docRows = await db
     .select({ id: documents.id })
@@ -218,6 +219,19 @@ export async function sendEnvelope(
       });
     }
   });
+
+  // Deliver signing invitations (best-effort; no-op unless email is configured).
+  const base = process.env.PUBLIC_BASE_URL ?? '';
+  await Promise.allSettled(
+    signerRows.map((signer) =>
+      sendSigningInvite({
+        to: signer.email,
+        signerName: signer.name,
+        documentName: env.documentName,
+        signUrl: `${base}/sign/${signer.signingToken}`,
+      }),
+    ),
+  );
 
   const result = await getEnvelope(db, userId, envelopeId);
   if (!result) {
