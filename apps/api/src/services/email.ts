@@ -5,6 +5,7 @@
  * Send from the verified subdomain (send.penpact.dev) to protect root
  * reputation. `buildInviteEmail` is pure and unit-tested.
  */
+import { fill, strings } from '../lib/i18n.js';
 import { logger } from '../lib/logger.js';
 
 export interface SigningInvite {
@@ -12,6 +13,7 @@ export interface SigningInvite {
   signerName: string;
   documentName: string;
   signUrl: string;
+  locale?: string;
 }
 
 export interface EmailMessage {
@@ -61,16 +63,17 @@ export async function sendEmail(msg: EmailMessage): Promise<{ id: string } | nul
 }
 
 export function buildInviteEmail(invite: SigningInvite): EmailMessage {
+  const t = strings(invite.locale);
   const name = escapeHtml(invite.signerName);
   const doc = escapeHtml(invite.documentName);
   const url = escapeHtml(invite.signUrl);
   return {
     to: invite.to,
-    subject: `Please sign: ${invite.documentName}`,
-    html: `<p>Hi ${name},</p>
-<p><strong>${doc}</strong> is ready for your signature.</p>
-<p><a href="${url}">Review &amp; sign the document</a></p>
-<p>If you did not expect this, you can ignore this email.</p>`,
+    subject: fill(t.emailInviteSubject, { doc: invite.documentName }),
+    html: `<p>${fill(t.emailInviteIntro, { name })}</p>
+<p>${fill(t.emailInviteBody, { doc: `<strong>${doc}</strong>` })}</p>
+<p><a href="${url}">${t.emailInviteCta}</a></p>
+<p>${t.emailInviteIgnore}</p>`,
   };
 }
 
@@ -90,16 +93,22 @@ export function buildVerifyEmail(input: { to: string; verifyUrl: string }): Emai
   };
 }
 
-export function buildOtpEmail(input: { to: string; name: string; code: string }): EmailMessage {
+export function buildOtpEmail(input: {
+  to: string;
+  name: string;
+  code: string;
+  locale?: string;
+}): EmailMessage {
+  const t = strings(input.locale);
   const name = escapeHtml(input.name);
   const code = escapeHtml(input.code);
   return {
     to: input.to,
-    subject: `Your signing verification code: ${input.code}`,
-    html: `<p>Hi ${name},</p>
-<p>Use this one-time code to verify your identity and continue signing:</p>
+    subject: fill(t.emailOtpSubject, { code: input.code }),
+    html: `<p>${fill(t.emailOtpIntro, { name })}</p>
+<p>${t.emailOtpBody}</p>
 <p style="font-size:24px;font-weight:700;letter-spacing:3px">${code}</p>
-<p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>`,
+<p>${t.emailOtpExpiry}</p>`,
   };
 }
 

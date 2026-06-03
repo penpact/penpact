@@ -8,6 +8,7 @@
  * so this page captures a typed signature; a drawn-signature canvas would need
  * the sealer to embed PNG images and is a later increment.
  */
+import { TRANSLATIONS } from '../lib/i18n.js';
 
 const STYLES = `
 :root {
@@ -103,6 +104,15 @@ function esc(s){ const d=document.createElement("div"); d.textContent=s==null?""
 function initialsOf(name){ return (name||"").split(/\\s+/).filter(Boolean).map(w=>w[0]).join("").toUpperCase().slice(0,4); }
 function today(){ const d=new Date(); return d.toISOString().slice(0,10); }
 
+const I18N = ${JSON.stringify(TRANSLATIONS)};
+function loc(){ return (session && session.locale) || "en"; }
+function tr(key, vars){
+  const d = I18N[loc()] || I18N.en;
+  let s = (d && d[key]) || I18N.en[key] || key;
+  if (vars) s = s.replace(/\\{(\\w+)\\}/g, function(_, k){ return vars[k] != null ? vars[k] : "{"+k+"}"; });
+  return s;
+}
+
 let session = null;
 let signMode = "type";
 let signDrawn = false;
@@ -163,15 +173,13 @@ function render(){
 
 function renderAuth(){
   const isOtp = session.authRequired === "email_otp";
-  const where = (session.signer && session.signer.email) ? esc(session.signer.email) : "your address";
+  const where = (session.signer && session.signer.email) ? session.signer.email : "your address";
   $("panel").innerHTML =
-    '<h2>Verify your identity</h2>' +
-    '<p class="lead">' + (isOtp
-      ? 'We emailed a one-time code to ' + where + '. Enter it to continue.'
-      : 'This document is protected. Enter the access code the sender gave you.') + '</p>' +
-    '<input id="authCode" type="text" inputmode="' + (isOtp ? 'numeric' : 'text') + '" placeholder="' + (isOtp ? '6-digit code' : 'Access code') + '" autocomplete="one-time-code">' +
+    '<h2>' + esc(tr('verifyTitle')) + '</h2>' +
+    '<p class="lead">' + esc(isOtp ? tr('verifyOtpHint', { email: where }) : tr('verifyCodeHint')) + '</p>' +
+    '<input id="authCode" type="text" inputmode="' + (isOtp ? 'numeric' : 'text') + '" placeholder="' + esc(isOtp ? tr('codePlaceholder') : tr('accessPlaceholder')) + '" autocomplete="one-time-code">' +
     '<div class="err" id="authErr"></div>' +
-    '<button class="btn-primary" id="authBtn" style="margin-top:12px">Verify</button>';
+    '<button class="btn-primary" id="authBtn" style="margin-top:12px">' + esc(tr('verify')) + '</button>';
   $("authCode").addEventListener("keydown", (e)=>{ if(e.key==="Enter") submitAuth(); });
   $("authBtn").onclick = submitAuth;
 }
@@ -191,13 +199,13 @@ async function submitAuth(){
 function renderConsent(){
   const d = session.consentDisclosure || { text: "", hash: "" };
   $("panel").innerHTML =
-    '<h2>Before you sign</h2>' +
-    '<p class="lead">Federal law (the U.S. ESIGN Act) requires your consent to do business electronically.</p>' +
+    '<h2>' + esc(tr('beforeYouSign')) + '</h2>' +
+    '<p class="lead">' + esc(tr('consentIntro')) + '</p>' +
     '<div class="disclosure">' + esc(d.text) + '</div>' +
     '<label class="check"><input type="checkbox" id="agree"> ' +
-      'I consent to use electronic records and signatures for this document.</label>' +
+      esc(tr('consentAgree')) + '</label>' +
     '<div class="err" id="err"></div>' +
-    '<button class="btn-primary" id="continueBtn" disabled style="margin-top:16px">Continue</button>';
+    '<button class="btn-primary" id="continueBtn" disabled style="margin-top:16px">' + esc(tr('continue')) + '</button>';
   $("agree").addEventListener("change", (e) => { $("continueBtn").disabled = !e.target.checked; });
   $("continueBtn").addEventListener("click", submitConsent.bind(null, d.hash));
 }
@@ -222,17 +230,17 @@ function renderSign(){
   const name = session.signer.name || "";
   const myFields = (session.fields || []).filter(f => f.signerId === session.signer.id);
   let html =
-    '<h2>Adopt your signature</h2>' +
-    '<p class="lead">Type your full legal name, then type or draw your signature.</p>' +
-    '<div class="field"><label for="fullName">Full name</label>' +
+    '<h2>' + esc(tr('adoptSignature')) + '</h2>' +
+    '<p class="lead">' + esc(tr('adoptHint')) + '</p>' +
+    '<div class="field"><label for="fullName">' + esc(tr('fullName')) + '</label>' +
       '<input type="text" id="fullName" value="' + esc(name) + '" autocomplete="name"></div>' +
-    '<div class="field"><label>Signature</label>' +
-      '<div class="sigtabs"><button type="button" id="tabType" class="active">Type</button>' +
-        '<button type="button" id="tabDraw">Draw</button></div>' +
+    '<div class="field"><label>' + esc(tr('signatureLabel')) + '</label>' +
+      '<div class="sigtabs"><button type="button" id="tabType" class="active">' + esc(tr('type')) + '</button>' +
+        '<button type="button" id="tabDraw">' + esc(tr('draw')) + '</button></div>' +
       '<div id="typeWrap"><div class="sig-preview" id="sigPreview">' + esc(name) + '</div></div>' +
       '<div id="drawWrap" style="display:none">' +
         '<canvas id="sigCanvas" width="360" height="120"></canvas>' +
-        '<button type="button" class="btn-ghost" id="clearCanvas" style="margin-top:6px">Clear</button>' +
+        '<button type="button" class="btn-ghost" id="clearCanvas" style="margin-top:6px">' + esc(tr('clear')) + '</button>' +
       '</div></div>';
 
   const extra = myFields.filter(f => !["signature","stamp","initials","name"].includes(f.type));
@@ -257,10 +265,9 @@ function renderSign(){
 
   html +=
     '<div class="err" id="err"></div>' +
-    '<button class="btn-primary" id="signBtn">Sign document</button>' +
-    '<button class="btn-ghost" id="declineBtn">Decline to sign</button>' +
-    '<p class="legal">By clicking Sign document, you agree that this typed name is your ' +
-      'signature on this document and is as legally binding as a handwritten one.</p>';
+    '<button class="btn-primary" id="signBtn">' + esc(tr('signButton')) + '</button>' +
+    '<button class="btn-ghost" id="declineBtn">' + esc(tr('declineButton')) + '</button>' +
+    '<p class="legal">' + esc(tr('legalLine')) + '</p>';
 
   $("panel").innerHTML = html;
   $("fullName").addEventListener("input", (e) => { $("sigPreview").textContent = e.target.value; });
@@ -357,7 +364,7 @@ async function submitSign(myFields){
     if (v) values.push({ fieldId: f.id, value: v });
   }
 
-  btn.disabled = true; btn.textContent = "Signing\\u2026";
+  btn.disabled = true; btn.textContent = tr('signing');
   try {
     const res = await fetch(api("/complete"), {
       method: "POST", headers: { "content-type": "application/json" },

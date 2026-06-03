@@ -36,6 +36,8 @@ export interface SigningSession {
   authRequired?: StepUpMethod;
   /** The sending account's white-label branding, applied to the signing UI. */
   branding: { name: string | null; color: string | null; logoUrl: string | null };
+  /** Signer-facing language (en, es, fr, de). */
+  locale: string;
 }
 
 const CLOSED_ENVELOPE_STATUSES = new Set(['completed', 'voided', 'expired', 'declined']);
@@ -132,7 +134,7 @@ function randomOtp(): string {
 }
 
 /** Issue a fresh email OTP if none is currently valid, and email it (best-effort). */
-async function ensureOtpIssued(db: Database, signer: SignerRow): Promise<void> {
+async function ensureOtpIssued(db: Database, signer: SignerRow, locale: string): Promise<void> {
   if (signer.otpHash && signer.otpExpiresAt && signer.otpExpiresAt.getTime() > Date.now()) {
     return;
   }
@@ -145,7 +147,7 @@ async function ensureOtpIssued(db: Database, signer: SignerRow): Promise<void> {
       otpAttempts: 0,
     })
     .where(eq(signers.id, signer.id));
-  await sendEmail(buildOtpEmail({ to: signer.email, name: signer.name, code }));
+  await sendEmail(buildOtpEmail({ to: signer.email, name: signer.name, code, locale }));
 }
 
 /**
@@ -225,7 +227,7 @@ export async function getSigningSession(
   const method = stepUpMethod(signer);
   if (method && !signer.authPassedAt) {
     if (method === 'email_otp') {
-      await ensureOtpIssued(db, signer);
+      await ensureOtpIssued(db, signer, envelope.locale);
     }
     return {
       envelopeId: envelope.id,
@@ -238,6 +240,7 @@ export async function getSigningSession(
       consentDisclosure: null,
       authRequired: method,
       branding,
+      locale: envelope.locale,
     };
   }
 
@@ -301,6 +304,7 @@ export async function getSigningSession(
           hash: CONSENT_DISCLOSURE.hash,
         },
     branding,
+    locale: envelope.locale,
   };
 }
 
@@ -536,6 +540,7 @@ export async function completeSigning(
           signerName: s.name,
           documentName: envelope.documentName,
           signUrl: `${base}/sign/${s.signingToken}`,
+          locale: envelope.locale,
         }),
       ),
     );

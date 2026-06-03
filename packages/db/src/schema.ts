@@ -201,6 +201,8 @@ export const envelopes = pgTable(
     status: envelopeStatus('status').notNull().default('draft'),
     /** 'live' or 'test' — inherited from the API key that created it. */
     mode: text('mode').notNull().default('live'),
+    /** UI/email language for signers (en, es, fr, de). */
+    locale: text('locale').notNull().default('en'),
     /** When set, unsigned signers are re-nudged every N hours. Null = off. */
     reminderIntervalHours: integer('reminder_interval_hours'),
     lastReminderAt: timestamp('last_reminder_at', { withTimezone: true }),

@@ -1,5 +1,6 @@
 import { AUTH_METHODS, FIELD_TYPES, SIGNATURE_TYPES } from '@penpact/core';
 import { z } from 'zod';
+import { SUPPORTED_LOCALES } from './lib/i18n.js';
 
 export const signerCreateSchema = z.object({
   name: z.string().min(1),
@@ -41,6 +42,8 @@ export const envelopeCreateSchema = z.object({
   expiresAt: z.string().datetime().optional(),
   /** Re-nudge unsigned signers every N hours (1..8760). Omit to disable. */
   reminderEveryHours: z.number().int().min(1).max(8760).optional(),
+  /** Signer-facing language for the signing page + emails. */
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
 });
 
 export type EnvelopeCreateInput = z.infer<typeof envelopeCreateSchema>;

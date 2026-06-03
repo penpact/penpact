@@ -141,6 +141,7 @@ export async function createEnvelope(
         userId,
         documentName: input.documentName,
         mode,
+        locale: input.locale ?? 'en',
         reminderIntervalHours: input.reminderEveryHours ?? null,
         senderName: user.name ?? user.email,
         senderEmail: user.email,
@@ -250,6 +251,7 @@ export async function sendEnvelope(
         signerName: signer.name,
         documentName: env.documentName,
         signUrl: `${base}/sign/${signer.signingToken}`,
+        locale: env.locale,
       }),
     ),
   );
@@ -348,6 +350,7 @@ export async function resendInvite(
     signerName: signer.name,
     documentName: env.documentName,
     signUrl: `${base}/sign/${signer.signingToken}`,
+    locale: env.locale,
   });
 }
 

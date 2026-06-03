@@ -1,0 +1,1 @@
+ALTER TABLE "envelopes" ADD COLUMN IF NOT EXISTS "locale" text DEFAULT 'en' NOT NULL;

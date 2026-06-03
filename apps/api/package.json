@@ -76,6 +76,10 @@
     "./reminders": {
       "import": "./dist/services/reminders.js",
       "default": "./dist/services/reminders.js"
+    },
+    "./i18n": {
+      "import": "./dist/lib/i18n.js",
+      "default": "./dist/lib/i18n.js"
     }
   },
   "scripts": {

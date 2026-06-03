@@ -12,6 +12,7 @@ import { recordEvent } from './events.js';
 interface DueEnvelope {
   id: string;
   documentName: string;
+  locale: string;
 }
 
 /** Atomically claim envelopes whose next reminder is due and stamp the time. */
@@ -36,7 +37,7 @@ export async function claimDueReminders(
       LIMIT ${limit}
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING id AS "id", document_name AS "documentName"
+    RETURNING id AS "id", document_name AS "documentName", locale AS "locale"
   `);
   return (
     Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])
@@ -83,6 +84,7 @@ export async function processReminders(db: Database, deps: ReminderDeps = {}): P
         signerName: r.name,
         documentName: env.documentName,
         signUrl: `${base}/sign/${r.token}`,
+        locale: env.locale,
       });
       await recordEvent(db, {
         envelopeId: env.id,
