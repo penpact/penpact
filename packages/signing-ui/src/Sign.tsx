@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildFieldValues,
   type ControllerDeps,
@@ -50,6 +50,11 @@ export function Sign(props: SignProps): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  // Keep the latest onError without making it a load-effect dependency, so a
+  // parent re-render (new callback identity) does not re-fetch the session.
+  const onErrorRef = useRef(props.onError);
+  onErrorRef.current = props.onError;
+
   useEffect(() => {
     let alive = true;
     setPhase('loading');
@@ -58,7 +63,7 @@ export function Sign(props: SignProps): JSX.Element {
       if (r.kind === 'gone') return setPhase('gone');
       if (r.kind === 'notfound') return setPhase('notfound');
       if (r.kind === 'error') {
-        props.onError?.(r.message);
+        onErrorRef.current?.(r.message);
         setErr(r.message);
         return setPhase('error');
       }
@@ -76,7 +81,7 @@ export function Sign(props: SignProps): JSX.Element {
     return () => {
       alive = false;
     };
-  }, [deps, props.onError]);
+  }, [deps]);
 
   const myFields: SignerField[] = session
     ? session.fields.filter((f) => f.signerId === session.signer.id)

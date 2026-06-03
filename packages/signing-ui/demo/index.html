@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Penpact &lt;Sign/&gt; demo</title>
+    <!--
+      Minimal host-app demo: a different origin (e.g. http://localhost:4400)
+      embedding the native <Sign/> component talking to api.penpact.dev.
+      Build the package first (pnpm --filter @penpact/signing-ui build), serve
+      this folder's parent, then open:  /demo/index.html?token=<signer-token>
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@18.3.1",
+          "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+          "react-dom/client": "https://esm.sh/react-dom@18.3.1/client"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <h2>Host app embedding &lt;Sign/&gt;</h2>
+    <div id="status" style="font: 16px monospace; padding: 8px; background: #eee">status: idle</div>
+    <div id="root"></div>
+    <script type="module">
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { Sign } from '../dist/index.js';
+
+      const params = new URLSearchParams(location.search);
+      const token = params.get('token') ?? '';
+      const apiBase = params.get('api') ?? 'https://api.penpact.dev';
+
+      function App() {
+        const [s, setS] = React.useState('idle');
+        React.useEffect(() => {
+          document.getElementById('status').textContent = 'status: ' + s;
+        }, [s]);
+        if (!token) return React.createElement('p', null, 'Add ?token=<signer-token> to the URL.');
+        return React.createElement(Sign, {
+          token,
+          apiBase,
+          onComplete: (id) => setS('COMPLETED ' + id),
+          onDecline: () => setS('DECLINED'),
+          onError: (m) => setS('ERROR ' + m),
+        });
+      }
+      createRoot(document.getElementById('root')).render(React.createElement(App));
+    </script>
+  </body>
+</html>
