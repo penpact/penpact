@@ -266,6 +266,10 @@ function renderSign(){
   $("fullName").addEventListener("input", (e) => { $("sigPreview").textContent = e.target.value; });
   $("signBtn").addEventListener("click", () => submitSign(myFields));
   $("declineBtn").addEventListener("click", submitDecline);
+  // Conditional fields: re-evaluate visibility on any change.
+  $("panel").addEventListener("input", () => recomputeConditions(myFields));
+  $("panel").addEventListener("change", () => recomputeConditions(myFields));
+  recomputeConditions(myFields);
 
   // Type / Draw signature.
   signMode = "type"; signDrawn = false;
@@ -301,6 +305,25 @@ function fieldWrap(id, label, inner){
   return '<div class="field"><label for="'+id+'">'+esc(label)+'</label>'+inner+'</div>';
 }
 
+function fieldCurrentValue(fieldId){
+  const radio = document.querySelector('input[name="f_' + fieldId + '"]:checked');
+  if (radio) return radio.value;
+  const el = document.getElementById("f_" + fieldId);
+  if (!el) return "";
+  if (el.type === "checkbox") return el.checked ? "Yes" : "";
+  return (el.value || "").trim();
+}
+
+function recomputeConditions(myFields){
+  for (const f of myFields){
+    if (!f.condition) continue;
+    const el = document.getElementById("f_" + f.id);
+    const wrap = el && el.closest ? el.closest(".field") : null;
+    if (!wrap) continue;
+    wrap.style.display = fieldCurrentValue(f.condition.fieldId) === f.condition.equals ? "" : "none";
+  }
+}
+
 async function submitSign(myFields){
   const btn = $("signBtn"); const err = $("err");
   err.textContent = "";
@@ -316,6 +339,8 @@ async function submitSign(myFields){
 
   const values = [];
   for (const f of myFields) {
+    // Skip fields hidden by an unmet condition.
+    if (f.condition && fieldCurrentValue(f.condition.fieldId) !== f.condition.equals) continue;
     let v = "";
     if (f.type === "signature" || f.type === "stamp") v = signatureValue || fullName;
     else if (f.type === "name") v = fullName;

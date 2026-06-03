@@ -42,6 +42,7 @@ export interface FieldResponse {
   aiDetected: boolean;
   value: string | null;
   options: string[] | null;
+  condition: { fieldId: string; equals: string } | null;
 }
 
 export interface EnvelopeResponse {
@@ -89,6 +90,7 @@ export function toFieldResponse(row: FieldRow): FieldResponse {
     aiDetected: row.aiDetected,
     value: row.value,
     options: row.options ?? null,
+    condition: row.condition ?? null,
   };
 }
 

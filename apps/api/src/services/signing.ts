@@ -420,7 +420,10 @@ export async function completeSigning(
     }
   }
   for (const field of myFields) {
-    if (field.required && !provided.has(field.id)) {
+    // A conditional field is only required when its controlling field matches.
+    const cond = field.condition as { fieldId: string; equals: string } | null;
+    const applies = !cond || provided.get(cond.fieldId) === cond.equals;
+    if (field.required && applies && !provided.has(field.id)) {
       throw new HttpProblem({
         status: 422,
         title: 'Validation Error',

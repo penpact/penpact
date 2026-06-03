@@ -12,6 +12,14 @@ export interface SignerField {
   required?: boolean;
   /** Choices for dropdown/radio fields. */
   options?: string[] | null;
+  /** Show/require this field only when another field equals a value. */
+  condition?: { fieldId: string; equals: string } | null;
+}
+
+/** Whether a field's condition (if any) is satisfied by the current values. */
+export function fieldVisible(field: SignerField, valueOf: (fieldId: string) => string): boolean {
+  if (!field.condition) return true;
+  return valueOf(field.condition.fieldId) === field.condition.equals;
 }
 
 export interface SignerInfo {
@@ -109,19 +117,21 @@ export function buildFieldValues(
   inputs: Record<string, string>,
   signatureValue?: string,
 ): BuildResult {
+  const byId = new Map(fields.map((f) => [f.id, f]));
+  const valueOf = (fieldId: string): string => {
+    const f = byId.get(fieldId);
+    if (!f) return '';
+    if (f.type === 'signature' || f.type === 'stamp') return signatureValue ?? fullName;
+    if (f.type === 'name') return fullName;
+    if (f.type === 'initials') return initialsOf(fullName);
+    return inputs[fieldId] ?? '';
+  };
+
   const values: Array<{ fieldId: string; value: string }> = [];
   for (const f of fields) {
-    let value: string;
-    if (f.type === 'signature' || f.type === 'stamp') {
-      // A drawn/uploaded mark (PNG data URL) when provided, else the name.
-      value = signatureValue ?? fullName;
-    } else if (f.type === 'name') {
-      value = fullName;
-    } else if (f.type === 'initials') {
-      value = initialsOf(fullName);
-    } else {
-      value = inputs[f.id] ?? '';
-    }
+    // Skip fields hidden by an unmet condition — not shown, not required.
+    if (!fieldVisible(f, valueOf)) continue;
+    const value = valueOf(f.id);
     if (f.required && !value) {
       return { ok: false, error: 'Please complete all required fields.' };
     }

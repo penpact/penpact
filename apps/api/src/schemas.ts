@@ -58,6 +58,8 @@ export const fieldCreateSchema = z.object({
   required: z.boolean().optional(),
   /** Choices for dropdown/radio fields. */
   options: z.array(z.string().min(1).max(200)).min(1).max(50).optional(),
+  /** Show/require this field only when another field equals a value. */
+  condition: z.object({ fieldId: z.string().uuid(), equals: z.string().max(200) }).optional(),
 });
 
 export const placeFieldsSchema = z.object({

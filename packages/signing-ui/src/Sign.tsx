@@ -3,6 +3,8 @@ import {
   buildFieldValues,
   type ControllerDeps,
   documentUrl,
+  fieldVisible,
+  initialsOf,
   loadSession,
   postAuthenticate,
   postComplete,
@@ -362,6 +364,14 @@ export function Sign(props: SignProps): JSX.Element {
           )}
 
           {extraFields.map((f) => {
+            const valueOf = (id: string): string => {
+              const cf = myFields.find((x) => x.id === id);
+              if (!cf) return '';
+              if (cf.type === 'name') return fullName;
+              if (cf.type === 'initials') return initialsOf(fullName);
+              return inputs[id] ?? '';
+            };
+            if (!fieldVisible(f, valueOf)) return null;
             const set = (v: string) => setInputs((prev) => ({ ...prev, [f.id]: v }));
             if (f.type === 'dropdown') {
               return (

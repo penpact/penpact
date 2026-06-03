@@ -1,6 +1,7 @@
 import {
   buildFieldValues,
   documentUrl,
+  fieldVisible,
   initialsOf,
   loadSession,
   postComplete,
@@ -10,6 +11,34 @@ import {
 import { describe, expect, it } from 'vitest';
 
 type Field = { id: string; type: string; signerId: string };
+
+describe('conditional fields', () => {
+  const ctrl = { id: 'ctrl', type: 'checkbox', signerId: 's' };
+  const cond = {
+    id: 'cond',
+    type: 'text',
+    signerId: 's',
+    required: true,
+    condition: { fieldId: 'ctrl', equals: 'Yes' },
+  };
+
+  it('hides a field whose condition is unmet', () => {
+    expect(fieldVisible(cond, () => '')).toBe(false);
+    expect(fieldVisible(cond, (id) => (id === 'ctrl' ? 'Yes' : ''))).toBe(true);
+  });
+
+  it('does not require a hidden conditional field', () => {
+    const r = buildFieldValues([ctrl, cond], 'Ada', {});
+    expect(r.ok).toBe(true);
+  });
+
+  it('requires the field once its condition is met', () => {
+    const r = buildFieldValues([ctrl, cond], 'Ada', { ctrl: 'Yes' });
+    expect(r.ok).toBe(false);
+    const r2 = buildFieldValues([ctrl, cond], 'Ada', { ctrl: 'Yes', cond: 'filled' });
+    expect(r2.ok).toBe(true);
+  });
+});
 
 const fakeFetch = (status: number, body: unknown = {}) =>
   (async () => ({

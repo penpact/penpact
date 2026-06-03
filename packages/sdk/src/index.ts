@@ -39,6 +39,8 @@ export interface Field {
   value: string | null;
   /** Choices for dropdown/radio fields. */
   options: string[] | null;
+  /** Show/require this field only when another field equals a value. */
+  condition: { fieldId: string; equals: string } | null;
 }
 
 export interface Envelope {
@@ -91,6 +93,8 @@ export interface FieldInput {
   required?: boolean;
   /** Choices for dropdown/radio fields. */
   options?: string[];
+  /** Show/require this field only when another field equals a value. */
+  condition?: { fieldId: string; equals: string };
 }
 
 export interface ListEnvelopesParams {

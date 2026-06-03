@@ -319,6 +319,8 @@ export const fields = pgTable(
     required: boolean('required').notNull().default(true),
     /** Choices for dropdown/radio fields. */
     options: jsonb('options').$type<string[]>(),
+    /** Show/require this field only when another field equals a value. */
+    condition: jsonb('condition').$type<{ fieldId: string; equals: string }>(),
     value: text('value'),
     aiDetected: boolean('ai_detected').notNull().default(false),
     completedAt: timestamp('completed_at', { withTimezone: true }),
