@@ -36,6 +36,13 @@
       "when": 1780700000000,
       "tag": "0004_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780800000000,
+      "tag": "0005_auth_tokens",
+      "breakpoints": true
     }
   ]
 }

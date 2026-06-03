@@ -49,6 +49,7 @@ export const webhookDeliveryStatus = pgEnum('webhook_delivery_status', [
   'succeeded',
   'failed',
 ]);
+export const authTokenPurpose = pgEnum('auth_token_purpose', ['verify_email', 'password_reset']);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -67,6 +68,7 @@ export const users = pgTable(
     name: text('name'),
     /** scrypt password hash for dashboard sign-in. Null for CLI-created users. */
     passwordHash: text('password_hash'),
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
     ...timestamps,
   },
   // Case-insensitive uniqueness — auth lookups normalize to lower-case.
@@ -91,6 +93,27 @@ export const sessions = pgTable(
   (t) => [
     uniqueIndex('sessions_token_uq').on(t.tokenHash),
     index('sessions_user_idx').on(t.userId),
+  ],
+);
+
+// ─── auth_tokens (single-use, hashed, expiring: email verification + password reset) ───
+export const authTokens = pgTable(
+  'auth_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: authTokenPurpose('purpose').notNull(),
+    /** SHA-256 hash of the raw token sent in the email link. */
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('auth_tokens_hash_uq').on(t.tokenHash),
+    index('auth_tokens_user_idx').on(t.userId),
   ],
 );
 
@@ -339,10 +362,15 @@ export const usersRelations = relations(users, ({ many }) => ({
   envelopes: many(envelopes),
   sessions: many(sessions),
   webhookEndpoints: many(webhookEndpoints),
+  authTokens: many(authTokens),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, { fields: [sessions.userId], references: [users.id] }),
+}));
+
+export const authTokensRelations = relations(authTokens, ({ one }) => ({
+  user: one(users, { fields: [authTokens.userId], references: [users.id] }),
 }));
 
 export const webhookEndpointsRelations = relations(webhookEndpoints, ({ one, many }) => ({
