@@ -44,6 +44,10 @@
     "./accounts": {
       "import": "./dist/services/accounts.js",
       "default": "./dist/services/accounts.js"
+    },
+    "./email": {
+      "import": "./dist/services/email.js",
+      "default": "./dist/services/email.js"
     }
   },
   "scripts": {
