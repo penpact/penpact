@@ -5,7 +5,7 @@ import { clientIp, userAgent } from '../lib/request.js';
 import { validateJson } from '../lib/validate.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { SESSION_COOKIE, sessionAuth } from '../middleware/session.js';
-import { createKeySchema, credentialsSchema } from '../schemas.js';
+import { createKeySchema, createWebhookEndpointSchema, credentialsSchema } from '../schemas.js';
 import {
   createApiKey,
   getSessionUser,
@@ -17,6 +17,12 @@ import {
   type SessionResult,
   signUp,
 } from '../services/accounts.js';
+import {
+  createEndpoint,
+  deleteEndpoint,
+  listDeliveries,
+  listEndpoints,
+} from '../services/webhooks.js';
 import type { AppEnv } from '../types.js';
 
 const reqMeta = (c: Context) => ({ ip: clientIp(c), ua: userAgent(c) });
@@ -92,6 +98,27 @@ api.delete('/api-keys/:id', async (c) => {
 
 api.get('/usage', async (c) => {
   return c.json(await getUsage(c.get('db'), c.get('userId')));
+});
+
+// ─── Webhook endpoints + deliveries ───
+api.get('/webhook-endpoints', async (c) => {
+  return c.json({ data: await listEndpoints(c.get('db'), c.get('userId')) });
+});
+
+api.post('/webhook-endpoints', validateJson(createWebhookEndpointSchema), async (c) => {
+  const { url, description } = c.req.valid('json');
+  // The signing secret is returned exactly once.
+  const created = await createEndpoint(c.get('db'), c.get('userId'), url, description);
+  return c.json(created, 201);
+});
+
+api.delete('/webhook-endpoints/:id', async (c) => {
+  await deleteEndpoint(c.get('db'), c.get('userId'), c.req.param('id'));
+  return c.body(null, 204);
+});
+
+api.get('/webhook-deliveries', async (c) => {
+  return c.json({ data: await listDeliveries(c.get('db'), c.get('userId')) });
 });
 
 dashboard.route('/', api);

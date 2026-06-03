@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { type Database, webhookDeliveries, webhookEndpoints } from '@penpact/db';
-import { and, eq, lte } from 'drizzle-orm';
+import { and, desc, eq, lte } from 'drizzle-orm';
 import { generateWebhookSecret } from '../lib/crypto.js';
 
 export interface WebhookEvent {
@@ -67,27 +67,13 @@ export function buildCompletedEvent(
   };
 }
 
-/**
- * Best-effort delivery to a configured endpoint. Per-customer endpoints + a
- * retry queue arrive with the dashboard (Phase 5); for now a single
- * `WEBHOOK_URL`/`WEBHOOK_SECRET` is used when present.
- */
-export async function dispatchWebhook(event: WebhookEvent): Promise<void> {
-  const url = process.env.WEBHOOK_URL;
-  if (!url) {
-    return;
-  }
-  const body = JSON.stringify(event);
-  const signature = signWebhook(body, process.env.WEBHOOK_SECRET ?? '');
-  try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'Penpact-Signature': signature },
-      body,
-    });
-  } catch {
-    // Swallow delivery errors; a durable retry queue is a later increment.
-  }
+export function buildDeclinedEvent(envelopeId: string): WebhookEvent {
+  return {
+    id: `evt_${randomUUID()}`,
+    type: 'envelope.declined',
+    createdAt: new Date().toISOString(),
+    data: { envelopeId, status: 'declined', documentHashFinal: null },
+  };
 }
 
 // ─── Per-customer endpoints + durable delivery queue ───
@@ -156,6 +142,51 @@ export async function deleteEndpoint(db: Database, userId: string, id: string): 
     .where(and(eq(webhookEndpoints.id, id), eq(webhookEndpoints.userId, userId)));
 }
 
+export interface DeliverySummary {
+  id: string;
+  endpointId: string;
+  eventType: string;
+  status: string;
+  attempts: number;
+  responseStatus: number | null;
+  lastAttemptAt: string | null;
+  createdAt: string;
+}
+
+/** Recent deliveries across the caller's endpoints (for debugging in the dashboard). */
+export async function listDeliveries(
+  db: Database,
+  userId: string,
+  limit = 50,
+): Promise<DeliverySummary[]> {
+  const rows = await db
+    .select({
+      id: webhookDeliveries.id,
+      endpointId: webhookDeliveries.endpointId,
+      eventType: webhookDeliveries.eventType,
+      status: webhookDeliveries.status,
+      attempts: webhookDeliveries.attempts,
+      responseStatus: webhookDeliveries.responseStatus,
+      lastAttemptAt: webhookDeliveries.lastAttemptAt,
+      createdAt: webhookDeliveries.createdAt,
+    })
+    .from(webhookDeliveries)
+    .innerJoin(webhookEndpoints, eq(webhookEndpoints.id, webhookDeliveries.endpointId))
+    .where(eq(webhookEndpoints.userId, userId))
+    .orderBy(desc(webhookDeliveries.createdAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: r.id,
+    endpointId: r.endpointId,
+    eventType: r.eventType,
+    status: r.status,
+    attempts: r.attempts,
+    responseStatus: r.responseStatus,
+    lastAttemptAt: r.lastAttemptAt ? r.lastAttemptAt.toISOString() : null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
 /**
  * Enqueue one durable delivery per active endpoint of the envelope's owner.
  * Returns how many deliveries were enqueued. The worker handles the actual send.
@@ -210,7 +241,10 @@ export interface DrainSummary {
  * reschedule with exponential backoff, or mark `failed` once attempts reach
  * maxAttempts. The fetch impl and clock are injectable for testing.
  */
-export async function drainDueDeliveries(db: Database, opts: DrainOptions = {}): Promise<DrainSummary> {
+export async function drainDueDeliveries(
+  db: Database,
+  opts: DrainOptions = {},
+): Promise<DrainSummary> {
   const now = opts.now ?? new Date();
   const send = opts.fetch ?? (globalThis.fetch as unknown as WebhookFetch);
   const limit = opts.limit ?? 50;
@@ -273,7 +307,14 @@ export async function drainDueDeliveries(db: Database, opts: DrainOptions = {}):
       const nextAttemptAt = new Date(now.getTime() + nextDelaySeconds(attempts) * 1000);
       await db
         .update(webhookDeliveries)
-        .set({ status: 'pending', attempts, lastAttemptAt: now, responseStatus, error, nextAttemptAt })
+        .set({
+          status: 'pending',
+          attempts,
+          lastAttemptAt: now,
+          responseStatus,
+          error,
+          nextAttemptAt,
+        })
         .where(eq(webhookDeliveries.id, d.id));
       summary.rescheduled += 1;
     }

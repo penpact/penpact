@@ -64,4 +64,9 @@ export const createKeySchema = z.object({
   name: z.string().min(1).max(80).default('default'),
 });
 
+export const createWebhookEndpointSchema = z.object({
+  url: z.string().url().max(2048),
+  description: z.string().max(200).optional(),
+});
+
 export type CredentialsInput = z.infer<typeof credentialsSchema>;

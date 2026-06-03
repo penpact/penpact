@@ -110,6 +110,45 @@ describe.skipIf(!url)('dashboard accounts (integration)', () => {
     expect(usage).toHaveProperty('activeKeys');
   });
 
+  it('manages webhook endpoints and lists deliveries', async () => {
+    const create = await app.request('/dashboard/webhook-endpoints', {
+      method: 'POST',
+      headers: { ...json, cookie },
+      body: JSON.stringify({ url: 'https://hooks.example.test/penpact', description: 'prod' }),
+    });
+    expect(create.status).toBe(201);
+    const ep = await create.json();
+    expect(ep.secret).toMatch(/^whsec_/);
+    expect(ep.url).toBe('https://hooks.example.test/penpact');
+
+    const list = await app.request('/dashboard/webhook-endpoints', { headers: { cookie } });
+    expect(list.status).toBe(200);
+    const endpoints = (await list.json()).data;
+    const found = endpoints.find((e: { id: string }) => e.id === ep.id);
+    expect(found).toBeTruthy();
+    expect(found.secret).toBeUndefined();
+
+    const deliveries = await app.request('/dashboard/webhook-deliveries', { headers: { cookie } });
+    expect(deliveries.status).toBe(200);
+    expect(Array.isArray((await deliveries.json()).data)).toBe(true);
+
+    const rejected = await app.request('/dashboard/webhook-endpoints', {
+      method: 'POST',
+      headers: { ...json, cookie },
+      body: JSON.stringify({ url: 'not-a-url' }),
+    });
+    expect(rejected.status).toBe(422);
+
+    const del = await app.request(`/dashboard/webhook-endpoints/${ep.id}`, {
+      method: 'DELETE',
+      headers: { cookie },
+    });
+    expect(del.status).toBe(204);
+    const after = await app.request('/dashboard/webhook-endpoints', { headers: { cookie } });
+    const remaining = (await after.json()).data;
+    expect(remaining.find((e: { id: string }) => e.id === ep.id)).toBeUndefined();
+  });
+
   it('logs in with the right password and rejects the wrong one', async () => {
     const wrong = await app.request('/dashboard/auth/login', {
       method: 'POST',

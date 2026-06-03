@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import {
   buildCompletedEvent,
+  buildDeclinedEvent,
   isExhausted,
   nextDelaySeconds,
   parseSignatureHeader,
@@ -23,6 +24,17 @@ describe('webhooks', () => {
       envelopeId: 'env-1',
       status: 'completed',
       documentHashFinal: 'abc123',
+    });
+    expect(event.id.startsWith('evt_')).toBe(true);
+  });
+
+  it('builds a declined event payload', () => {
+    const event = buildDeclinedEvent('env-2');
+    expect(event.type).toBe('envelope.declined');
+    expect(event.data).toEqual({
+      envelopeId: 'env-2',
+      status: 'declined',
+      documentHashFinal: null,
     });
     expect(event.id.startsWith('evt_')).toBe(true);
   });

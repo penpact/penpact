@@ -13,7 +13,7 @@ import {
 } from './envelopes.js';
 import { recordEvent } from './events.js';
 import { finalizeEnvelope } from './sealing.js';
-import { buildCompletedEvent, dispatchWebhook } from './webhooks.js';
+import { buildCompletedEvent, buildDeclinedEvent, enqueueEnvelopeEvent } from './webhooks.js';
 
 type SignerRow = typeof signers.$inferSelect;
 type EnvelopeRow = typeof envelopes.$inferSelect;
@@ -309,7 +309,7 @@ export async function completeSigning(
 
   if (envelopeCompleted) {
     const { finalHash } = await finalizeEnvelope(db, storage, envelope.id);
-    await dispatchWebhook(buildCompletedEvent(envelope.id, finalHash));
+    await enqueueEnvelopeEvent(db, envelope.userId, buildCompletedEvent(envelope.id, finalHash));
   }
 
   return reloadSigner(db, signer.id);
@@ -351,6 +351,8 @@ export async function declineSigning(
       metadata: { reason: input.reason ?? null },
     });
   });
+
+  await enqueueEnvelopeEvent(db, envelope.userId, buildDeclinedEvent(envelope.id));
 
   return reloadSigner(db, signer.id);
 }

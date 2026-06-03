@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import { problemErrorHandler } from './lib/problem.js';
 import { dashboard } from './routes/dashboard.js';
 import { v1 } from './routes/v1.js';
+import { startWebhookWorker } from './services/webhook-worker.js';
 import type { AppEnv } from './types.js';
 import { dashboardPageHtml } from './web/dashboard-page.js';
 import { signPageHtml } from './web/sign-page.js';
@@ -41,4 +42,6 @@ if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`Penpact API listening on http://localhost:${info.port}`);
   });
+  // Drain the durable webhook queue on an interval.
+  startWebhookWorker();
 }
