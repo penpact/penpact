@@ -1,4 +1,4 @@
-import { buildInviteEmail } from '@penpact/api/email';
+import { buildInviteEmail, buildResetEmail, buildVerifyEmail } from '@penpact/api/email';
 import { describe, expect, it } from 'vitest';
 
 describe('email: buildInviteEmail', () => {
@@ -25,5 +25,21 @@ describe('email: buildInviteEmail', () => {
     expect(msg.html).not.toContain('<script>');
     expect(msg.html).toContain('&lt;script&gt;');
     expect(msg.html).toContain('&lt;b&gt;doc&lt;/b&gt;');
+  });
+});
+
+describe('email: account templates', () => {
+  it('buildVerifyEmail asks to confirm and links to the verify URL', () => {
+    const msg = buildVerifyEmail({ to: 'a@b.com', verifyUrl: 'https://api.penpact.dev/app?verify=tok' });
+    expect(msg.to).toBe('a@b.com');
+    expect(msg.subject.toLowerCase()).toMatch(/verify|confirm/);
+    expect(msg.html).toContain('https://api.penpact.dev/app?verify=tok');
+  });
+
+  it('buildResetEmail mentions reset and links to the reset URL', () => {
+    const msg = buildResetEmail({ to: 'a@b.com', resetUrl: 'https://api.penpact.dev/app?reset=tok' });
+    expect(msg.to).toBe('a@b.com');
+    expect(msg.subject.toLowerCase()).toContain('reset');
+    expect(msg.html).toContain('https://api.penpact.dev/app?reset=tok');
   });
 });

@@ -75,3 +75,26 @@ export function buildInviteEmail(invite: SigningInvite): EmailMessage {
 export function sendSigningInvite(invite: SigningInvite): Promise<{ id: string } | null> {
   return sendEmail(buildInviteEmail(invite));
 }
+
+export function buildVerifyEmail(input: { to: string; verifyUrl: string }): EmailMessage {
+  const url = escapeHtml(input.verifyUrl);
+  return {
+    to: input.to,
+    subject: 'Verify your Penpact email',
+    html: `<p>Welcome to Penpact.</p>
+<p>Confirm your email address to finish setting up your account:</p>
+<p><a href="${url}">Verify my email</a></p>
+<p>If you did not create a Penpact account, you can ignore this email.</p>`,
+  };
+}
+
+export function buildResetEmail(input: { to: string; resetUrl: string }): EmailMessage {
+  const url = escapeHtml(input.resetUrl);
+  return {
+    to: input.to,
+    subject: 'Reset your Penpact password',
+    html: `<p>We received a request to reset your Penpact password.</p>
+<p><a href="${url}">Choose a new password</a></p>
+<p>This link expires in one hour. If you did not request this, you can ignore this email and your password stays the same.</p>`,
+  };
+}
