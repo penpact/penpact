@@ -11,12 +11,21 @@ importers:
       '@biomejs/biome':
         specifier: ^2.0.0
         version: 2.4.16
+      '@penpact/api':
+        specifier: workspace:*
+        version: link:apps/api
       '@penpact/core':
         specifier: workspace:*
         version: link:packages/core
+      '@penpact/db':
+        specifier: workspace:*
+        version: link:packages/db
       '@penpact/sdk':
         specifier: workspace:*
         version: link:packages/sdk
+      drizzle-orm:
+        specifier: ^0.38.0
+        version: 0.38.4(postgres@3.4.9)
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -29,15 +38,24 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.14(hono@4.12.23)
+      '@hono/zod-validator':
+        specifier: ^0.4.0
+        version: 0.4.3(hono@4.12.23)(zod@3.25.76)
       '@penpact/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@penpact/db':
         specifier: workspace:*
         version: link:../../packages/db
+      drizzle-orm:
+        specifier: ^0.38.0
+        version: 0.38.4(postgres@3.4.9)
       hono:
         specifier: ^4.6.0
         version: 4.12.23
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
@@ -734,6 +752,12 @@ packages:
     peerDependencies:
       hono: ^4
 
+  '@hono/zod-validator@0.4.3':
+    resolution: {integrity: sha512-xIgMYXDyJ4Hj6ekm9T9Y27s080Nl9NXHcJkOvkXPhubOLj8hZkOL8pDnnXfvCf5xEE8Q4oMFenQUZZREUY2gqQ==}
+    peerDependencies:
+      hono: '>=3.9.0'
+      zod: ^3.19.1
+
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
@@ -1313,6 +1337,9 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
 snapshots:
 
   '@biomejs/biome@2.4.16':
@@ -1656,6 +1683,11 @@ snapshots:
   '@hono/node-server@1.19.14(hono@4.12.23)':
     dependencies:
       hono: 4.12.23
+
+  '@hono/zod-validator@0.4.3(hono@4.12.23)(zod@3.25.76)':
+    dependencies:
+      hono: 4.12.23
+      zod: 3.25.76
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
@@ -2171,3 +2203,5 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  zod@3.25.76: {}

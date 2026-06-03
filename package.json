@@ -20,8 +20,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
+    "@penpact/api": "workspace:*",
     "@penpact/core": "workspace:*",
+    "@penpact/db": "workspace:*",
     "@penpact/sdk": "workspace:*",
+    "drizzle-orm": "^0.38.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }

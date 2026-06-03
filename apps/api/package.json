@@ -4,6 +4,20 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./schemas": {
+      "import": "./dist/schemas.js",
+      "default": "./dist/schemas.js"
+    },
+    "./crypto": {
+      "import": "./dist/lib/crypto.js",
+      "default": "./dist/lib/crypto.js"
+    }
+  },
   "scripts": {
     "build": "tsc -b",
     "dev": "tsx watch src/index.ts",
@@ -11,9 +25,12 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
+    "@hono/zod-validator": "^0.4.0",
     "@penpact/core": "workspace:*",
     "@penpact/db": "workspace:*",
-    "hono": "^4.6.0"
+    "drizzle-orm": "^0.38.0",
+    "hono": "^4.6.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
