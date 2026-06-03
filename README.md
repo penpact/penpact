@@ -49,7 +49,20 @@ const penpact = new PenpactClient({ apiKey: process.env.PENPACT_API_KEY! });
 // envelope create / send / download — coming with the first release.
 ```
 
-Self-host (planned): `docker run penpact/penpact` → a working signing instance in minutes.
+### Self-host in minutes
+
+```bash
+docker compose up
+```
+
+Brings up Postgres + the API, applies migrations, and prints a ready-to-use demo
+API key in the logs. Then point the SDK at `http://localhost:3000`:
+
+```ts
+const penpact = new PenpactClient({ apiKey: 'pk_live_…', baseUrl: 'http://localhost:3000' });
+```
+
+Mint more keys with: `docker compose exec api node apps/api/dist/bin/bootstrap.js you@example.com`
 
 ## How it compares
 

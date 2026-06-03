@@ -1,0 +1,16 @@
+.git
+.github
+node_modules
+**/node_modules
+dist
+**/dist
+**/*.tsbuildinfo
+.penpact-storage
+coverage
+.vitest
+# Internal/private docs — never bake into the image
+PLAN.md
+NAMING.md
+GITHUB-GROWTH.md
+CLAUDE.md
+.claude

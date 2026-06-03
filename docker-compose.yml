@@ -15,5 +15,23 @@ services:
     volumes:
       - penpact_pgdata:/var/lib/postgresql/data
 
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://penpact:penpact@postgres:5432/penpact
+      PORT: "3000"
+      PUBLIC_BASE_URL: http://localhost:3000
+      STORAGE_DIR: /data/storage
+      # On first boot, mint a demo API key and print it in the logs.
+      DEMO_BOOTSTRAP_EMAIL: demo@penpact.local
+    ports:
+      - "3000:3000"
+    volumes:
+      - penpact_storage:/data/storage
+
 volumes:
   penpact_pgdata:
+  penpact_storage:
