@@ -192,7 +192,12 @@ signRoute.get('/:token', async (c) => {
 });
 
 signRoute.get('/:token/document', async (c) => {
-  const bytes = await getSignerDocument(c.get('db'), getStorage(), c.req.param('token'));
+  const bytes = await getSignerDocument(
+    c.get('db'),
+    getStorage(),
+    c.req.param('token'),
+    c.req.query('documentId'),
+  );
   return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
 });
 

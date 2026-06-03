@@ -1,5 +1,5 @@
 import { type Database, documents, envelopes, fields, signers } from '@penpact/db';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { CONSENT_DISCLOSURE } from '../consent.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { CompleteInput, DeclineInput } from '../schemas.js';
@@ -24,7 +24,9 @@ export interface SigningSession {
   envelopeId: string;
   documentName: string;
   signer: SignerResponse;
+  /** First document's URL (back-compat); prefer `documents` for multi-document. */
   documentUrl: string;
+  documents: Array<{ id: string; documentUrl: string; pageCount: number | null }>;
   fields: FieldResponse[];
   consentRequired: boolean;
   consentDisclosure: { version: string; text: string; hash: string } | null;
@@ -134,17 +136,30 @@ export async function getSigningSession(
     current = { ...signer, status: nextStatus, viewedAt };
   }
 
-  const fieldRows = await db
-    .select()
-    .from(fields)
-    .where(and(eq(fields.envelopeId, envelope.id), eq(fields.signerId, signer.id)));
+  const [fieldRows, docRows] = await Promise.all([
+    db
+      .select()
+      .from(fields)
+      .where(and(eq(fields.envelopeId, envelope.id), eq(fields.signerId, signer.id))),
+    db
+      .select({ id: documents.id, pageCount: documents.pageCount })
+      .from(documents)
+      .where(and(eq(documents.envelopeId, envelope.id), eq(documents.isFinal, false)))
+      .orderBy(asc(documents.position)),
+  ]);
   const base = process.env.PUBLIC_BASE_URL ?? '';
+  const documentList = docRows.map((d) => ({
+    id: d.id,
+    documentUrl: `${base}/v1/sign/${token}/document?documentId=${d.id}`,
+    pageCount: d.pageCount,
+  }));
 
   return {
     envelopeId: envelope.id,
     documentName: envelope.documentName,
     signer: toSignerResponse(current),
-    documentUrl: `${base}/v1/sign/${token}/document`,
+    documentUrl: documentList[0]?.documentUrl ?? `${base}/v1/sign/${token}/document`,
+    documents: documentList,
     fields: fieldRows.map(toFieldResponse),
     consentRequired: !current.consentGiven,
     consentDisclosure: current.consentGiven
@@ -426,13 +441,18 @@ export async function getSignerDocument(
   db: Database,
   storage: Storage,
   token: string,
+  documentId?: string,
 ): Promise<Uint8Array> {
   const { envelope } = await loadByToken(db, token);
+  // A specific source document (multi-document), else the final-or-first source.
+  const whereClause = documentId
+    ? and(eq(documents.envelopeId, envelope.id), eq(documents.id, documentId))
+    : eq(documents.envelopeId, envelope.id);
   const docRows = await db
     .select({ storageKey: documents.storageKey })
     .from(documents)
-    .where(eq(documents.envelopeId, envelope.id))
-    .orderBy(desc(documents.isFinal), desc(documents.createdAt))
+    .where(whereClause)
+    .orderBy(desc(documents.isFinal), asc(documents.position), desc(documents.createdAt))
     .limit(1);
   const doc = docRows[0];
   if (!doc) {

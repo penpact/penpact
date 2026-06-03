@@ -19,6 +19,8 @@ export type EnvelopeCreateInput = z.infer<typeof envelopeCreateSchema>;
 export const fieldCreateSchema = z.object({
   type: z.enum(FIELD_TYPES),
   signerId: z.string().uuid(),
+  /** Which document the field is on. Optional when the envelope has one document. */
+  documentId: z.string().uuid().optional(),
   page: z.number().int().min(1),
   x: z.number().min(0),
   y: z.number().min(0),

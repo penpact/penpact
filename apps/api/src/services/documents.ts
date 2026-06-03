@@ -1,5 +1,5 @@
 import { type Database, documents, envelopes } from '@penpact/db';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq } from 'drizzle-orm';
 import { PDFDocument } from 'pdf-lib';
 import { sha256HexBytes } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
@@ -14,6 +14,7 @@ export interface DocumentResponse {
   mimeType: string;
   byteSize: number | null;
   pageCount: number | null;
+  position: number;
   isFinal: boolean;
 }
 
@@ -61,14 +62,17 @@ export async function uploadDocument(
   }
 
   const contentHash = sha256HexBytes(bytes);
-  const storageKey = `envelopes/${envelopeId}/source.pdf`;
-  await storage.put(storageKey, bytes, 'application/pdf');
 
   return db.transaction(async (tx) => {
-    // Replace any prior source (draft re-upload); fields cascade-delete with it.
-    await tx
-      .delete(documents)
+    // Append: an envelope can hold several source documents (multi-document).
+    const existing = await tx
+      .select({ n: count() })
+      .from(documents)
       .where(and(eq(documents.envelopeId, envelopeId), eq(documents.isFinal, false)));
+    const position = existing[0]?.n ?? 0;
+    const storageKey = `envelopes/${envelopeId}/source-${position}.pdf`;
+    await storage.put(storageKey, bytes, 'application/pdf');
+
     const inserted = await tx
       .insert(documents)
       .values({
@@ -78,6 +82,7 @@ export async function uploadDocument(
         mimeType: 'application/pdf',
         byteSize: bytes.byteLength,
         pageCount,
+        position,
         isFinal: false,
       })
       .returning();
@@ -85,16 +90,20 @@ export async function uploadDocument(
     if (!doc) {
       throw new Error('Failed to store document');
     }
-    await tx
-      .update(envelopes)
-      .set({ documentHashOriginal: contentHash })
-      .where(eq(envelopes.id, envelopeId));
+    // The "original hash" tracks the first document for the certificate/events.
+    if (position === 0) {
+      await tx
+        .update(envelopes)
+        .set({ documentHashOriginal: contentHash })
+        .where(eq(envelopes.id, envelopeId));
+    }
     return {
       id: doc.id,
       contentHash: doc.contentHash,
       mimeType: doc.mimeType,
       byteSize: doc.byteSize,
       pageCount: doc.pageCount,
+      position: doc.position,
       isFinal: doc.isFinal,
     };
   });
@@ -120,7 +129,7 @@ export async function downloadDocument(
     .select({ storageKey: documents.storageKey })
     .from(documents)
     .where(eq(documents.envelopeId, envelopeId))
-    .orderBy(desc(documents.isFinal), desc(documents.createdAt))
+    .orderBy(desc(documents.isFinal), asc(documents.position), desc(documents.createdAt))
     .limit(1);
   const doc = docRows[0];
   if (!doc) {

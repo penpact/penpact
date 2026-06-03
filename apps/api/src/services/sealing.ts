@@ -1,10 +1,10 @@
 import { certificates, type Database, documents, envelopes, fields, signers } from '@penpact/db';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { sha256HexBytes } from '../lib/crypto.js';
 import type { Storage } from '../storage/index.js';
 import { buildCertificatePayload, loadEvents } from './certificate.js';
 import { sealPdfWithPades } from './pades.js';
-import { buildCertificatePdf, buildFinalPdf } from './pdf.js';
+import { buildCertificatePdf, buildMergedFinalPdf } from './pdf.js';
 
 /**
  * Produce the immutable final artifacts once every signer has signed:
@@ -41,20 +41,33 @@ export async function finalizeEnvelope(
     .select()
     .from(documents)
     .where(and(eq(documents.envelopeId, envelopeId), eq(documents.isFinal, false)))
-    .orderBy(desc(documents.createdAt))
-    .limit(1);
-  const source = sourceRows[0];
-  if (!source) {
+    .orderBy(asc(documents.position), asc(documents.createdAt));
+  if (sourceRows.length === 0) {
     throw new Error(`finalizeEnvelope: no source document for ${envelopeId}`);
   }
 
-  const [signerRows, fieldRows, sourceBytes] = await Promise.all([
+  const [signerRows, fieldRows] = await Promise.all([
     db.select().from(signers).where(eq(signers.envelopeId, envelopeId)),
     db.select().from(fields).where(eq(fields.envelopeId, envelopeId)),
-    storage.get(source.storageKey),
   ]);
 
-  const flattened = await buildFinalPdf(sourceBytes, fieldRows);
+  // Merge every source document (in position order) into one sealed final PDF.
+  const sources = await Promise.all(
+    sourceRows.map(async (s) => ({ documentId: s.id, bytes: await storage.get(s.storageKey) })),
+  );
+  const totalPages = sourceRows.reduce((sum, s) => sum + (s.pageCount ?? 0), 0);
+  const flattened = await buildMergedFinalPdf(
+    sources,
+    fieldRows.map((f) => ({
+      documentId: f.documentId,
+      page: f.page,
+      x: f.x,
+      y: f.y,
+      width: f.width,
+      height: f.height,
+      value: f.value,
+    })),
+  );
   const finalBytes = await sealPdfWithPades(flattened);
   const finalHash = sha256HexBytes(finalBytes);
   const finalKey = `envelopes/${envelopeId}/final.pdf`;
@@ -73,7 +86,7 @@ export async function finalizeEnvelope(
       contentHash: finalHash,
       mimeType: 'application/pdf',
       byteSize: finalBytes.byteLength,
-      pageCount: source.pageCount,
+      pageCount: totalPages,
       isFinal: true,
     });
     await tx

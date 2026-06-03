@@ -16,16 +16,16 @@ export async function placeFields(
   const docRows = await db
     .select({ id: documents.id, pageCount: documents.pageCount })
     .from(documents)
-    .where(and(eq(documents.envelopeId, envelopeId), eq(documents.isFinal, false)))
-    .limit(1);
-  const doc = docRows[0];
-  if (!doc) {
+    .where(and(eq(documents.envelopeId, envelopeId), eq(documents.isFinal, false)));
+  if (docRows.length === 0) {
     throw new HttpProblem({
       status: 409,
       title: 'Conflict',
       detail: 'Upload a document before placing fields.',
     });
   }
+  const docById = new Map(docRows.map((d) => [d.id, d]));
+  const soleDocId = docRows.length === 1 ? docRows[0]?.id : undefined;
 
   const signerRows = await db
     .select({ id: signers.id })
@@ -33,12 +33,29 @@ export async function placeFields(
     .where(eq(signers.envelopeId, envelopeId));
   const signerIds = new Set(signerRows.map((s) => s.id));
 
-  for (const field of input.fields) {
+  // Resolve each field's target document (explicit, or the sole document).
+  const resolved = input.fields.map((field) => {
     if (!signerIds.has(field.signerId)) {
       throw new HttpProblem({
         status: 422,
         title: 'Validation Error',
         detail: `signerId ${field.signerId} is not a signer on this envelope.`,
+      });
+    }
+    const documentId = field.documentId ?? soleDocId;
+    if (!documentId) {
+      throw new HttpProblem({
+        status: 422,
+        title: 'Validation Error',
+        detail: 'This envelope has multiple documents; specify documentId for each field.',
+      });
+    }
+    const doc = docById.get(documentId);
+    if (!doc) {
+      throw new HttpProblem({
+        status: 422,
+        title: 'Validation Error',
+        detail: `documentId ${documentId} is not a document on this envelope.`,
       });
     }
     if (doc.pageCount !== null && field.page > doc.pageCount) {
@@ -48,14 +65,15 @@ export async function placeFields(
         detail: `page ${field.page} exceeds the document's ${doc.pageCount} page(s).`,
       });
     }
-  }
+    return { field, documentId };
+  });
 
   const inserted = await db
     .insert(fields)
     .values(
-      input.fields.map((field) => ({
+      resolved.map(({ field, documentId }) => ({
         envelopeId,
-        documentId: doc.id,
+        documentId,
         signerId: field.signerId,
         type: field.type,
         page: field.page,
