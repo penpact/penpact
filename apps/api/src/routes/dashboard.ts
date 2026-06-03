@@ -3,6 +3,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { getDb } from '../db.js';
 import { clientIp, userAgent } from '../lib/request.js';
 import { validateJson } from '../lib/validate.js';
+import { csrfProtect } from '../middleware/csrf.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { SESSION_COOKIE, sessionAuth } from '../middleware/session.js';
 import { createKeySchema, createWebhookEndpointSchema, credentialsSchema } from '../schemas.js';
@@ -39,6 +40,9 @@ function setSessionCookie(c: Context, session: SessionResult): void {
 }
 
 export const dashboard = new Hono<AppEnv>();
+
+// Cookie-authenticated surface: reject cross-origin unsafe requests (CSRF).
+dashboard.use('*', csrfProtect);
 
 // ─── Auth (cookie session) ───
 const authRoute = new Hono<AppEnv>();

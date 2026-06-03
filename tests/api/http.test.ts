@@ -51,6 +51,42 @@ describe('app (no DB required)', () => {
     expect(html).not.toContain('"></script>');
   });
 
+  it('blocks a cross-origin POST to the dashboard (CSRF) before the handler', async () => {
+    const prev = process.env.PUBLIC_BASE_URL;
+    process.env.PUBLIC_BASE_URL = 'https://api.penpact.dev';
+    try {
+      const res = await app.request('/dashboard/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
+        body: JSON.stringify({ email: 'a@b.com', password: 'whatever12' }),
+      });
+      expect(res.status).toBe(403);
+      expect(res.headers.get('content-type')).toContain('application/problem+json');
+    } finally {
+      process.env.PUBLIC_BASE_URL = prev;
+    }
+  });
+
+  it('allows a same-origin unsafe request past the CSRF gate', async () => {
+    const prev = process.env.PUBLIC_BASE_URL;
+    process.env.PUBLIC_BASE_URL = 'https://api.penpact.dev';
+    try {
+      // logout needs no DB and no body; same-origin should pass the gate (204).
+      const res = await app.request('/dashboard/auth/logout', {
+        method: 'POST',
+        headers: { origin: 'https://api.penpact.dev' },
+      });
+      expect(res.status).not.toBe(403);
+    } finally {
+      process.env.PUBLIC_BASE_URL = prev;
+    }
+  });
+
+  it('allows an unsafe request with no Origin header (non-browser client)', async () => {
+    const res = await app.request('/dashboard/auth/logout', { method: 'POST' });
+    expect(res.status).not.toBe(403);
+  });
+
   it('POST /v1/envelopes without auth → RFC 7807 401', async () => {
     const res = await app.request('/v1/envelopes', {
       method: 'POST',
