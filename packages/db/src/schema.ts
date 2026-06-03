@@ -128,6 +128,7 @@ export const documents = pgTable(
     version: integer('version').notNull().default(1),
     mimeType: text('mime_type').notNull().default('application/pdf'),
     byteSize: integer('byte_size'),
+    pageCount: integer('page_count'),
     /** true once this is the flattened + sealed final copy. */
     isFinal: boolean('is_final').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -1,4 +1,4 @@
-import { AUTH_METHODS } from '@penpact/core';
+import { AUTH_METHODS, FIELD_TYPES } from '@penpact/core';
 import { z } from 'zod';
 
 export const signerCreateSchema = z.object({
@@ -15,3 +15,21 @@ export const envelopeCreateSchema = z.object({
 });
 
 export type EnvelopeCreateInput = z.infer<typeof envelopeCreateSchema>;
+
+export const fieldCreateSchema = z.object({
+  type: z.enum(FIELD_TYPES),
+  signerId: z.string().uuid(),
+  page: z.number().int().min(1),
+  x: z.number().min(0),
+  y: z.number().min(0),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  required: z.boolean().optional(),
+});
+
+export const placeFieldsSchema = z.object({
+  fields: z.array(fieldCreateSchema).min(1),
+});
+
+export type FieldCreateInput = z.infer<typeof fieldCreateSchema>;
+export type PlaceFieldsInput = z.infer<typeof placeFieldsSchema>;

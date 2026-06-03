@@ -60,7 +60,7 @@ function toSigner(row: SignerRow): SignerResponse {
   };
 }
 
-function toField(row: FieldRow): FieldResponse {
+export function toFieldResponse(row: FieldRow): FieldResponse {
   return {
     id: row.id,
     type: row.type,
@@ -91,7 +91,7 @@ function toEnvelope(
     documentHashFinal: env.documentHashFinal,
     hashAlgorithm: env.hashAlgorithm,
     signers: signerRows.sort((a, b) => a.routingOrder - b.routingOrder).map(toSigner),
-    fields: fieldRows.map(toField),
+    fields: fieldRows.map(toFieldResponse),
     createdAt: env.createdAt.toISOString(),
     sentAt: iso(env.sentAt),
     completedAt: iso(env.completedAt),

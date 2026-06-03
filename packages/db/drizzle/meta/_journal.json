@@ -15,6 +15,13 @@
       "when": 1780497466741,
       "tag": "0001_events_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780498938377,
+      "tag": "0002_add_document_page_count",
+      "breakpoints": true
     }
   ]
 }

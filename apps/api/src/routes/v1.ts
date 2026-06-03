@@ -4,13 +4,17 @@ import { z } from 'zod';
 import { HttpProblem } from '../lib/problem.js';
 import { validateJson, validateQuery } from '../lib/validate.js';
 import { apiKeyAuth } from '../middleware/auth.js';
-import { envelopeCreateSchema } from '../schemas.js';
+import { envelopeCreateSchema, placeFieldsSchema } from '../schemas.js';
+import { requireEnvelope } from '../services/access.js';
+import { downloadDocument, uploadDocument } from '../services/documents.js';
 import {
   createEnvelope,
   getEnvelope,
   type ListOptions,
   listEnvelopes,
 } from '../services/envelopes.js';
+import { placeFields } from '../services/fields.js';
+import { getStorage } from '../storage/index.js';
 import type { AppEnv } from '../types.js';
 
 const listQuerySchema = z.object({
@@ -50,6 +54,44 @@ envelopesRoute.get('/:id', async (c) => {
     throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Envelope not found.' });
   }
   return c.json(envelope);
+});
+
+envelopesRoute.put('/:id/document', async (c) => {
+  const body = new Uint8Array(await c.req.arrayBuffer());
+  const document = await uploadDocument(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+    body,
+  );
+  return c.json(document);
+});
+
+envelopesRoute.get('/:id/document', async (c) => {
+  const bytes = await downloadDocument(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+  );
+  return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
+});
+
+envelopesRoute.post('/:id/fields', validateJson(placeFieldsSchema), async (c) => {
+  const input = c.req.valid('json');
+  const created = await placeFields(c.get('db'), c.get('userId'), c.req.param('id'), input);
+  return c.json({ data: created }, 201);
+});
+
+envelopesRoute.post('/:id/fields/auto-detect', async (c) => {
+  // Confirm ownership first, then signal the feature is not yet available.
+  await requireEnvelope(c.get('db'), c.get('userId'), c.req.param('id'));
+  throw new HttpProblem({
+    status: 501,
+    title: 'Not Implemented',
+    detail: 'AI field auto-detection ships in a later release (Phase 4).',
+  });
 });
 
 export const v1 = new Hono<AppEnv>();

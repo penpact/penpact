@@ -41,8 +41,9 @@ coverage/
 npm-debug.log*
 pnpm-debug.log*
 
-# ─── Local databases / uploads ───
+# ─── Local databases / uploads / storage ───
 *.sqlite
 *.sqlite3
 /tmp/
 /uploads/
+/.penpact-storage/

@@ -15,6 +15,11 @@ export function sha256Hex(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
+/** SHA-256 (hex) of raw bytes — used for document integrity. */
+export function sha256HexBytes(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
 export interface GeneratedApiKey {
   /** The full secret — shown to the user exactly once, never stored. */
   key: string;
