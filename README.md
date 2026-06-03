@@ -14,6 +14,8 @@ legally-valid audit trail. No per-page billing, no seats.
 
 </div>
 
+<p align="center"><img src="docs/assets/flow.svg" alt="Penpact signing flow: create envelope, place fields (manual or AI), send, sign with consent, PAdES seal, certificate + webhook" width="100%"></p>
+
 ---
 
 > **Status: early development.** The core signing engine is being built in the open. Stars and

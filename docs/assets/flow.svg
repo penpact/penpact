@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 150" role="img" aria-label="Penpact signing flow: create envelope, upload PDF, place or AI-detect fields, send, signer consents and signs, PAdES seal, certificate plus webhook" font-family="-apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#71717a"/>
+    </marker>
+    <style>
+      .box{fill:#f4f4f5;stroke:#6366f1;stroke-width:1.5;rx:10}
+      .t{fill:#18181b;font-size:13px;font-weight:600}
+      .s{fill:#52525b;font-size:10.5px}
+      .arr{stroke:#71717a;stroke-width:1.5;marker-end:url(#a)}
+      @media (prefers-color-scheme: dark){
+        .box{fill:#1f1f23;stroke:#818cf8}
+        .t{fill:#fafafa}.s{fill:#a1a1aa}
+        .arr{stroke:#a1a1aa}
+      }
+    </style>
+  </defs>
+
+  <g>
+    <rect class="box" x="8"   y="45" width="150" height="60" rx="10"/>
+    <text class="t" x="83"  y="72" text-anchor="middle">Create envelope</text>
+    <text class="s" x="83"  y="90" text-anchor="middle">+ upload PDF</text>
+
+    <rect class="box" x="198" y="45" width="150" height="60" rx="10"/>
+    <text class="t" x="273" y="72" text-anchor="middle">Place fields</text>
+    <text class="s" x="273" y="90" text-anchor="middle">manual or AI-detect</text>
+
+    <rect class="box" x="388" y="45" width="140" height="60" rx="10"/>
+    <text class="t" x="458" y="72" text-anchor="middle">Send</text>
+    <text class="s" x="458" y="90" text-anchor="middle">email signing links</text>
+
+    <rect class="box" x="568" y="45" width="160" height="60" rx="10"/>
+    <text class="t" x="648" y="72" text-anchor="middle">Sign</text>
+    <text class="s" x="648" y="90" text-anchor="middle">consent (§7001c) + audit</text>
+
+    <rect class="box" x="768" y="45" width="150" height="60" rx="10"/>
+    <text class="t" x="843" y="72" text-anchor="middle">Seal</text>
+    <text class="s" x="843" y="90" text-anchor="middle">PAdES + SHA-256</text>
+
+    <rect class="box" x="958" y="45" width="200" height="60" rx="10"/>
+    <text class="t" x="1058" y="72" text-anchor="middle">Certificate + webhook</text>
+    <text class="s" x="1058" y="90" text-anchor="middle">immutable, verifiable</text>
+
+    <line class="arr" x1="160" y1="75" x2="196" y2="75"/>
+    <line class="arr" x1="350" y1="75" x2="386" y2="75"/>
+    <line class="arr" x1="530" y1="75" x2="566" y2="75"/>
+    <line class="arr" x1="730" y1="75" x2="766" y2="75"/>
+    <line class="arr" x1="920" y1="75" x2="956" y2="75"/>
+  </g>
+</svg>
