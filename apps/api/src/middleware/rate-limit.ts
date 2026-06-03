@@ -23,6 +23,10 @@ export function rateLimit(options: { windowMs: number; max: number }): Middlewar
       buckets.set(key, bucket);
     }
     bucket.count += 1;
+    const remaining = Math.max(0, options.max - bucket.count);
+    c.header('X-RateLimit-Limit', String(options.max));
+    c.header('X-RateLimit-Remaining', String(remaining));
+    c.header('X-RateLimit-Reset', String(Math.ceil(bucket.resetAt / 1000)));
     if (bucket.count > options.max) {
       c.header('Retry-After', String(Math.ceil((bucket.resetAt - now) / 1000)));
       throw new HttpProblem({

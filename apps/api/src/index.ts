@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { logger as log } from './lib/logger.js';
 import { problemErrorHandler } from './lib/problem.js';
+import { requestId } from './middleware/request-id.js';
 import { dashboard } from './routes/dashboard.js';
 import { v1 } from './routes/v1.js';
 import { startWebhookWorker } from './services/webhook-worker.js';
@@ -12,6 +13,7 @@ import { signPageHtml } from './web/sign-page.js';
 
 export const app = new Hono<AppEnv>();
 
+app.use('*', requestId);
 app.use('*', logger());
 app.onError(problemErrorHandler);
 

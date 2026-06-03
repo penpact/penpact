@@ -46,6 +46,7 @@ export interface FieldResponse {
 export interface EnvelopeResponse {
   id: string;
   documentName: string;
+  mode: string;
   status: EnvelopeRow['status'];
   senderName: string;
   senderEmail: string;
@@ -97,6 +98,7 @@ function toEnvelope(
   return {
     id: env.id,
     documentName: env.documentName,
+    mode: env.mode,
     status: env.status,
     senderName: env.senderName,
     senderEmail: env.senderEmail,
@@ -116,6 +118,7 @@ export async function createEnvelope(
   db: Database,
   userId: string,
   input: EnvelopeCreateInput,
+  mode: 'live' | 'test' = 'live',
 ): Promise<EnvelopeResponse> {
   const userRows = await db
     .select({ email: users.email, name: users.name })
@@ -133,6 +136,7 @@ export async function createEnvelope(
       .values({
         userId,
         documentName: input.documentName,
+        mode,
         senderName: user.name ?? user.email,
         senderEmail: user.email,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,

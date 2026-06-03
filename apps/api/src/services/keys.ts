@@ -58,11 +58,12 @@ export async function mintApiKey(
   db: Database,
   userId: string,
   name = 'default',
+  mode: 'live' | 'test' = 'live',
 ): Promise<MintedKey> {
-  const generated = generateApiKey('live');
+  const generated = generateApiKey(mode);
   const inserted = await db
     .insert(apiKeys)
-    .values({ userId, name, prefix: generated.prefix, keyHash: generated.hash })
+    .values({ userId, name, prefix: generated.prefix, keyHash: generated.hash, mode })
     .returning({ id: apiKeys.id, createdAt: apiKeys.createdAt });
   const row = inserted[0];
   if (!row) {

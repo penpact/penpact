@@ -189,6 +189,7 @@ async function renderApp(me, banner){
       '<h2>API keys</h2>' +
       '<div class="card">' +
         '<div class="row"><div style="flex:1"><label for="keyName">Key name</label><input id="keyName" type="text" placeholder="e.g. production"></div>' +
+          '<label style="align-self:flex-end;display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" id="keyTest"> Test mode</label>' +
           '<button class="btn-primary" id="createKey" style="align-self:flex-end">Create key</button></div>' +
         '<div id="secretBox"></div>' +
         '<div class="err" id="keyErr"></div>' +
@@ -256,7 +257,7 @@ async function loadEnvelopes(){
       (done ? ' · <a href="/dashboard/envelopes/'+esc(e.id)+'/certificate" target="_blank" rel="noopener">Certificate</a>' : '')+
       ' · <a href="#" data-events="'+esc(e.id)+'">History</a>';
     return '<tr>'+
-      '<td>'+esc(e.documentName)+'</td>'+
+      '<td>'+esc(e.documentName)+(e.mode==='test'?' <span class="pill">test</span>':'')+'</td>'+
       '<td><span class="pill">'+esc(e.status)+'</span></td>'+
       '<td class="muted">'+fmtDate(e.createdAt)+'</td>'+
       '<td class="muted">'+fmtDate(e.completedAt)+'</td>'+
@@ -303,7 +304,7 @@ async function loadKeys(){
   let rows = keys.map((k)=>{
     const revoked = k.revokedAt != null;
     return '<tr class="'+(revoked?'revoked':'')+'">'+
-      '<td>'+esc(k.name)+'</td>'+
+      '<td>'+esc(k.name)+(k.mode==='test'?' <span class="pill">test</span>':'')+'</td>'+
       '<td class="mono">'+esc(k.prefix)+'…</td>'+
       '<td class="muted">'+fmtDate(k.createdAt)+'</td>'+
       '<td>'+(revoked?'<span class="pill">revoked</span>':'<button class="btn-danger" data-revoke="'+esc(k.id)+'">Revoke</button>')+'</td>'+
@@ -316,9 +317,10 @@ async function loadKeys(){
 async function createKey(){
   const btn=$('createKey'); const err=$('keyErr'); err.textContent='';
   const name = ($('keyName').value.trim()) || 'default';
+  const mode = $('keyTest') && $('keyTest').checked ? 'test' : 'live';
   btn.disabled = true;
   try{
-    const res = await api('/api-keys',{ method:'POST', body: JSON.stringify({ name }) });
+    const res = await api('/api-keys',{ method:'POST', body: JSON.stringify({ name, mode }) });
     if(!res.ok){ err.textContent='Could not create the key.'; btn.disabled=false; return; }
     const k = await res.json();
     $('keyName').value='';

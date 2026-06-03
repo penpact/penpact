@@ -143,8 +143,8 @@ api.get('/api-keys', async (c) => {
 });
 
 api.post('/api-keys', validateJson(createKeySchema), async (c) => {
-  const { name } = c.req.valid('json');
-  const minted = await createApiKey(c.get('db'), c.get('userId'), name);
+  const { name, mode } = c.req.valid('json');
+  const minted = await createApiKey(c.get('db'), c.get('userId'), name, mode);
   // The full secret is returned exactly once.
   return c.json(minted, 201);
 });

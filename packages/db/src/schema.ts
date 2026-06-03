@@ -180,6 +180,8 @@ export const apiKeys = pgTable(
     prefix: text('prefix').notNull(),
     /** SHA-256 hash of the full high-entropy secret key. */
     keyHash: text('key_hash').notNull(),
+    /** 'live' or 'test' — test keys create test-mode envelopes, kept out of live data. */
+    mode: text('mode').notNull().default('live'),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -197,6 +199,8 @@ export const envelopes = pgTable(
       .references(() => users.id, { onDelete: 'restrict' }),
     documentName: text('document_name').notNull(),
     status: envelopeStatus('status').notNull().default('draft'),
+    /** 'live' or 'test' — inherited from the API key that created it. */
+    mode: text('mode').notNull().default('live'),
     documentHashOriginal: text('document_hash_original'),
     documentHashFinal: text('document_hash_final'),
     hashAlgorithm: text('hash_algorithm').notNull().default('SHA-256'),
@@ -430,6 +434,25 @@ export const certificates = pgTable(
     generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('certificates_envelope_uq').on(t.envelopeId)],
+);
+
+// ─── idempotency keys (Stripe-style safe POST retries) ───
+export const idempotencyKeys = pgTable(
+  'idempotency_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    idempotencyKey: text('idempotency_key').notNull(),
+    /** SHA-256 of method+path+body, to detect a key reused with a different request. */
+    requestHash: text('request_hash').notNull(),
+    /** 0 while the original request is in flight; the final HTTP status once done. */
+    responseStatus: integer('response_status').notNull().default(0),
+    responseBody: jsonb('response_body'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('idempotency_user_key_uq').on(t.userId, t.idempotencyKey)],
 );
 
 // ─── relations ───

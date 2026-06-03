@@ -208,6 +208,7 @@ export interface ApiKeySummary {
   id: string;
   name: string;
   prefix: string;
+  mode: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
   createdAt: string;
@@ -223,14 +224,20 @@ export async function listApiKeys(db: Database, userId: string): Promise<ApiKeyS
     id: r.id,
     name: r.name,
     prefix: r.prefix,
+    mode: r.mode,
     lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
     revokedAt: r.revokedAt ? r.revokedAt.toISOString() : null,
     createdAt: r.createdAt.toISOString(),
   }));
 }
 
-export async function createApiKey(db: Database, userId: string, name: string): Promise<MintedKey> {
-  return mintApiKey(db, userId, name);
+export async function createApiKey(
+  db: Database,
+  userId: string,
+  name: string,
+  mode: 'live' | 'test' = 'live',
+): Promise<MintedKey> {
+  return mintApiKey(db, userId, name, mode);
 }
 
 /** Revoke one of the caller's own keys. Idempotent; 404 if not theirs. */

@@ -129,6 +129,7 @@ export const credentialsSchema = z.object({
 
 export const createKeySchema = z.object({
   name: z.string().min(1).max(80).default('default'),
+  mode: z.enum(['live', 'test']).default('live'),
 });
 
 export const createWebhookEndpointSchema = z.object({

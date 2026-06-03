@@ -7,6 +7,7 @@ import { HttpProblem } from '../lib/problem.js';
 import { clientIp, userAgent } from '../lib/request.js';
 import { validateJson, validateQuery } from '../lib/validate.js';
 import { apiKeyAuth } from '../middleware/auth.js';
+import { idempotency } from '../middleware/idempotency.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import {
   authenticateSchema,
@@ -65,9 +66,15 @@ const listQuerySchema = z.object({
 // ─── Integrator routes (API-key auth) ───
 const envelopesRoute = new Hono<AppEnv>();
 envelopesRoute.use('*', apiKeyAuth);
+envelopesRoute.use('*', idempotency);
 
 envelopesRoute.post('/', validateJson(envelopeCreateSchema), async (c) => {
-  const envelope = await createEnvelope(c.get('db'), c.get('userId'), c.req.valid('json'));
+  const envelope = await createEnvelope(
+    c.get('db'),
+    c.get('userId'),
+    c.req.valid('json'),
+    c.get('mode'),
+  );
   return c.json(envelope, 201);
 });
 
@@ -239,6 +246,7 @@ signRoute.post('/:token/decline', validateJson(declineSchema), async (c) => {
 // ─── Template routes (API-key auth) ───
 const templatesRoute = new Hono<AppEnv>();
 templatesRoute.use('*', apiKeyAuth);
+templatesRoute.use('*', idempotency);
 
 templatesRoute.post('/', validateJson(templateCreateSchema), async (c) => {
   return c.json(await createTemplate(c.get('db'), c.get('userId'), c.req.valid('json')), 201);

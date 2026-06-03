@@ -42,6 +42,8 @@ export interface Field {
 export interface Envelope {
   id: string;
   documentName: string;
+  /** 'live' or 'test' — inherited from the API key that created it. */
+  mode: string;
   status: EnvelopeStatus;
   senderName: string;
   senderEmail: string;

@@ -24,7 +24,7 @@ export const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const key = header.slice('Bearer '.length).trim();
   const db = getDb();
   const rows = await db
-    .select({ userId: apiKeys.userId })
+    .select({ userId: apiKeys.userId, mode: apiKeys.mode })
     .from(apiKeys)
     .where(and(eq(apiKeys.keyHash, hashApiKey(key)), isNull(apiKeys.revokedAt)))
     .limit(1);
@@ -36,5 +36,6 @@ export const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 
   c.set('db', db);
   c.set('userId', row.userId);
+  c.set('mode', row.mode === 'test' ? 'test' : 'live');
   await next();
 };
