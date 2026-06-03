@@ -5,13 +5,7 @@
  * responses, an injectable `fetch` (works in Node, browsers, edge, and tests),
  * and typed errors (RFC 7807).
  */
-import type {
-  AuthMethod,
-  EnvelopeStatus,
-  FieldType,
-  SignatureType,
-  SignerStatus,
-} from '@penpact/core';
+import type { AuthMethod, EnvelopeStatus, FieldType, SignerStatus } from '@penpact/core';
 
 export interface PenpactClientOptions {
   /** Secret API key (pk_live_… / pk_test_…). */

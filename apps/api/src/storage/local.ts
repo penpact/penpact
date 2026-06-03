@@ -1,5 +1,5 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import type { Storage } from './types.js';
 
 /** Local-filesystem storage for development and self-hosting. */
@@ -12,7 +12,7 @@ export class LocalStorage implements Storage {
 
   #resolve(key: string): string {
     const target = resolve(this.#baseDir, key);
-    if (target !== this.#baseDir && !target.startsWith(this.#baseDir + '/')) {
+    if (target !== this.#baseDir && !target.startsWith(`${this.#baseDir}/`)) {
       throw new Error(`Refusing to access key outside storage root: ${key}`);
     }
     return target;
