@@ -43,3 +43,36 @@ export async function createApiKeyForEmail(
   });
   return { key: generated.key, userId };
 }
+
+export interface MintedKey {
+  id: string;
+  name: string;
+  prefix: string;
+  /** The full secret — returned once, never stored. */
+  key: string;
+  createdAt: string;
+}
+
+/** Mint a new API key for an existing user. The raw key is returned once. */
+export async function mintApiKey(
+  db: Database,
+  userId: string,
+  name = 'default',
+): Promise<MintedKey> {
+  const generated = generateApiKey('live');
+  const inserted = await db
+    .insert(apiKeys)
+    .values({ userId, name, prefix: generated.prefix, keyHash: generated.hash })
+    .returning({ id: apiKeys.id, createdAt: apiKeys.createdAt });
+  const row = inserted[0];
+  if (!row) {
+    throw new Error('Failed to create API key');
+  }
+  return {
+    id: row.id,
+    name,
+    prefix: generated.prefix,
+    key: generated.key,
+    createdAt: row.createdAt.toISOString(),
+  };
+}

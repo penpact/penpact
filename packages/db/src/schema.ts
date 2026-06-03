@@ -60,10 +60,33 @@ export const users = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').notNull(),
     name: text('name'),
+    /** scrypt password hash for dashboard sign-in. Null for CLI-created users. */
+    passwordHash: text('password_hash'),
     ...timestamps,
   },
   // Case-insensitive uniqueness — auth lookups normalize to lower-case.
   (t) => [uniqueIndex('users_email_lower_uq').on(sql`lower(${t.email})`)],
+);
+
+// ─── sessions (dashboard sign-in; store only a hash of the session token) ───
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** SHA-256 hash of the opaque session token carried in the cookie. */
+    tokenHash: text('token_hash').notNull(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('sessions_token_uq').on(t.tokenHash),
+    index('sessions_user_idx').on(t.userId),
+  ],
 );
 
 // ─── api_keys (store only a hash of the secret, never the raw key) ───
@@ -263,6 +286,11 @@ export const certificates = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   apiKeys: many(apiKeys),
   envelopes: many(envelopes),
+  sessions: many(sessions),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, { fields: [sessions.userId], references: [users.id] }),
 }));
 
 export const envelopesRelations = relations(envelopes, ({ one, many }) => ({

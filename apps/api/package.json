@@ -36,6 +36,14 @@
     "./pades": {
       "import": "./dist/services/pades.js",
       "default": "./dist/services/pades.js"
+    },
+    "./password": {
+      "import": "./dist/lib/password.js",
+      "default": "./dist/lib/password.js"
+    },
+    "./accounts": {
+      "import": "./dist/services/accounts.js",
+      "default": "./dist/services/accounts.js"
     }
   },
   "scripts": {

@@ -53,3 +53,15 @@ export const declineSchema = z.object({
 
 export type CompleteInput = z.infer<typeof completeSchema>;
 export type DeclineInput = z.infer<typeof declineSchema>;
+
+// ─── Dashboard auth ───
+export const credentialsSchema = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(128),
+});
+
+export const createKeySchema = z.object({
+  name: z.string().min(1).max(80).default('default'),
+});
+
+export type CredentialsInput = z.infer<typeof credentialsSchema>;

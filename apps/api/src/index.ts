@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { problemErrorHandler } from './lib/problem.js';
+import { dashboard } from './routes/dashboard.js';
 import { v1 } from './routes/v1.js';
 import type { AppEnv } from './types.js';
 import { signPageHtml } from './web/sign-page.js';
@@ -26,6 +27,9 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 app.get('/sign/:token', (c) => c.html(signPageHtml(c.req.param('token'))));
 
 app.route('/v1', v1);
+
+// Self-serve dashboard API (cookie session): signup/login + API-key management.
+app.route('/dashboard', dashboard);
 
 // Only start the HTTP listener when run directly (not when imported by tests).
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {

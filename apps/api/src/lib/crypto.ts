@@ -40,3 +40,8 @@ export const hashApiKey = sha256Hex;
 export function generateSigningToken(): string {
   return base62(40);
 }
+
+/** Opaque, unguessable session token carried in the dashboard cookie. */
+export function generateSessionToken(): string {
+  return base62(48);
+}

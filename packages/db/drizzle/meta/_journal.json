@@ -22,6 +22,13 @@
       "when": 1780498938377,
       "tag": "0002_add_document_page_count",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780600000000,
+      "tag": "0003_accounts_auth",
+      "breakpoints": true
     }
   ]
 }
