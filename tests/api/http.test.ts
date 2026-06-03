@@ -15,6 +15,28 @@ describe('app (no DB required)', () => {
     expect(body.name).toBe('Penpact');
   });
 
+  it('allows CORS preflight on signer endpoints (the embeddable component is cross-origin)', async () => {
+    const res = await app.request('/v1/sign/sometoken/consent', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://app.customer.example',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    });
+    expect(res.status).toBeLessThan(400);
+    expect(res.headers.get('access-control-allow-origin')).toBeTruthy();
+  });
+
+  it('does NOT add CORS to key-authed /v1 envelope endpoints (server-to-server only)', async () => {
+    const res = await app.request('/v1/envelopes', {
+      method: 'OPTIONS',
+      headers: { origin: 'https://app.customer.example', 'access-control-request-method': 'POST' },
+    });
+    // No CORS allow-origin reflected for the key-authed surface.
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
   it('GET /app → self-contained dashboard HTML', async () => {
     const res = await app.request('/app');
     expect(res.status).toBe(200);

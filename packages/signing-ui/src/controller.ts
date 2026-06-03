@@ -127,7 +127,11 @@ export async function loadSession(deps: ControllerDeps): Promise<LoadResult> {
   }
 }
 
-async function post(deps: ControllerDeps, suffix: string, body?: unknown): Promise<{ ok: boolean }> {
+async function post(
+  deps: ControllerDeps,
+  suffix: string,
+  body?: unknown,
+): Promise<{ ok: boolean }> {
   try {
     const res = await impl(deps)(api(deps, suffix), {
       method: 'POST',
@@ -140,7 +144,10 @@ async function post(deps: ControllerDeps, suffix: string, body?: unknown): Promi
   }
 }
 
-export function postConsent(deps: ControllerDeps, disclosureHash: string): Promise<{ ok: boolean }> {
+export function postConsent(
+  deps: ControllerDeps,
+  disclosureHash: string,
+): Promise<{ ok: boolean }> {
   return post(deps, '/consent', { disclosureHash, agree: true });
 }
 

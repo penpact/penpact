@@ -1,5 +1,6 @@
 import { ENVELOPE_STATUSES } from '@penpact/core';
 import { type Context, Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { z } from 'zod';
 import { getDb } from '../db.js';
 import { HttpProblem } from '../lib/problem.js';
@@ -136,6 +137,13 @@ envelopesRoute.get('/:id/certificate', async (c) => {
 
 // ─── Signer routes (authorized by the signingToken in the path, not an API key) ───
 const signRoute = new Hono<AppEnv>();
+// The embeddable <Sign/> component calls these from the host app's origin, so
+// allow CORS. Auth is the unguessable path token (no cookies), so origin '*'
+// is safe; the key-authed /v1 envelope endpoints deliberately get no CORS.
+signRoute.use(
+  '*',
+  cors({ origin: '*', allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['content-type'] }),
+);
 signRoute.use('*', rateLimit({ windowMs: 60_000, max: 120 }));
 signRoute.use('*', async (c, next) => {
   c.set('db', getDb());

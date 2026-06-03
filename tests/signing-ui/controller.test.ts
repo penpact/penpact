@@ -12,7 +12,11 @@ import { describe, expect, it } from 'vitest';
 type Field = { id: string; type: string; signerId: string };
 
 const fakeFetch = (status: number, body: unknown = {}) =>
-  (async () => ({ status, ok: status >= 200 && status < 300, json: async () => body })) as unknown as typeof fetch;
+  (async () => ({
+    status,
+    ok: status >= 200 && status < 300,
+    json: async () => body,
+  })) as unknown as typeof fetch;
 
 describe('signing-ui controller', () => {
   it('initialsOf builds uppercase initials, capped at 4', () => {
@@ -80,12 +84,20 @@ describe('signing-ui controller', () => {
     expect((await postConsent({ token: 't', fetch: fakeFetch(422) }, 'hash')).ok).toBe(false);
 
     expect(
-      (await postComplete({ token: 't', fetch: fakeFetch(200) }, { signatureType: 'typed', fields: [] }))
-        .ok,
+      (
+        await postComplete(
+          { token: 't', fetch: fakeFetch(200) },
+          { signatureType: 'typed', fields: [] },
+        )
+      ).ok,
     ).toBe(true);
     expect(
-      (await postComplete({ token: 't', fetch: fakeFetch(409) }, { signatureType: 'typed', fields: [] }))
-        .ok,
+      (
+        await postComplete(
+          { token: 't', fetch: fakeFetch(409) },
+          { signatureType: 'typed', fields: [] },
+        )
+      ).ok,
     ).toBe(false);
 
     expect((await postDecline({ token: 't', fetch: fakeFetch(200) }, 'no')).ok).toBe(true);
