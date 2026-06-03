@@ -144,7 +144,18 @@ describe.skipIf(!url)('envelopes (integration)', () => {
       method: 'POST',
       headers: headers(),
     });
-    expect(auto.status).toBe(501);
+    // 200 with a proposals array (empty in CI: no ANTHROPIC_API_KEY configured).
+    expect(auto.status).toBe(200);
+    expect(Array.isArray((await auto.json()).data)).toBe(true);
+  });
+
+  it('auto-detect requires a document (409 before upload)', async () => {
+    const { id } = await createDraft();
+    const res = await app.request(`/v1/envelopes/${id}/fields/auto-detect`, {
+      method: 'POST',
+      headers: headers(),
+    });
+    expect(res.status).toBe(409);
   });
 
   it('rejects a non-PDF upload with 422', async () => {

@@ -28,6 +28,10 @@
     "./keys": {
       "import": "./dist/services/keys.js",
       "default": "./dist/services/keys.js"
+    },
+    "./ai-fields": {
+      "import": "./dist/services/ai-fields.js",
+      "default": "./dist/services/ai-fields.js"
     }
   },
   "scripts": {
@@ -37,6 +41,7 @@
     "bootstrap": "tsx src/bin/bootstrap.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@hono/node-server": "^1.13.0",
     "@hono/zod-validator": "^0.4.0",
     "@penpact/core": "workspace:*",

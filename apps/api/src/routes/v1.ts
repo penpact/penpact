@@ -14,7 +14,7 @@ import {
   envelopeCreateSchema,
   placeFieldsSchema,
 } from '../schemas.js';
-import { requireEnvelope } from '../services/access.js';
+import { autoDetectEnvelopeFields } from '../services/ai-fields.js';
 import { downloadCertificate } from '../services/certificate.js';
 import { downloadDocument, uploadDocument } from '../services/documents.js';
 import {
@@ -110,12 +110,13 @@ envelopesRoute.post('/:id/fields', validateJson(placeFieldsSchema), async (c) =>
 });
 
 envelopesRoute.post('/:id/fields/auto-detect', async (c) => {
-  await requireEnvelope(c.get('db'), c.get('userId'), c.req.param('id'));
-  throw new HttpProblem({
-    status: 501,
-    title: 'Not Implemented',
-    detail: 'AI field auto-detection ships in a later release (Phase 4).',
-  });
+  const proposals = await autoDetectEnvelopeFields(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+  );
+  return c.json({ data: proposals });
 });
 
 envelopesRoute.post('/:id/send', async (c) => {
