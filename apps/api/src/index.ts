@@ -5,6 +5,7 @@ import { problemErrorHandler } from './lib/problem.js';
 import { dashboard } from './routes/dashboard.js';
 import { v1 } from './routes/v1.js';
 import type { AppEnv } from './types.js';
+import { dashboardPageHtml } from './web/dashboard-page.js';
 import { signPageHtml } from './web/sign-page.js';
 
 export const app = new Hono<AppEnv>();
@@ -30,6 +31,9 @@ app.route('/v1', v1);
 
 // Self-serve dashboard API (cookie session): signup/login + API-key management.
 app.route('/dashboard', dashboard);
+
+// Dashboard UI (same origin as the /dashboard API so the session cookie flows).
+app.get('/app', (c) => c.html(dashboardPageHtml()));
 
 // Only start the HTTP listener when run directly (not when imported by tests).
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {

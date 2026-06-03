@@ -15,6 +15,19 @@ describe('app (no DB required)', () => {
     expect(body.name).toBe('Penpact');
   });
 
+  it('GET /app → self-contained dashboard HTML', async () => {
+    const res = await app.request('/app');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const html = await res.text();
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('Penpact dashboard');
+    // Talks to the same-origin dashboard API; no external deps; not indexed.
+    expect(html).toContain('/dashboard');
+    expect(html).not.toContain('src="https://');
+    expect(html).toContain('noindex');
+  });
+
   it('GET /sign/:token → self-contained HTML signing page', async () => {
     const res = await app.request('/sign/abc123token');
     expect(res.status).toBe(200);
