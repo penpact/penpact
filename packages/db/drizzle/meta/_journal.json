@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780497434557,
+      "tag": "0000_spooky_crusher_hogan",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780497466741,
+      "tag": "0001_events_append_only",
+      "breakpoints": true
+    }
+  ]
+}

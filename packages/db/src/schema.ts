@@ -4,9 +4,13 @@
  * Encodes the data model from the build spec §8. Enum *values* are imported
  * from @penpact/core so the database, API and SDK share one source of truth.
  *
- * Integrity rules that live in application code (not yet DB-enforced here):
- *  - `events` is APPEND-ONLY (never UPDATE/DELETE; ideally revoke those grants).
- *  - `document_hash_*`, certificate rows and final documents are immutable once set.
+ * Integrity rules:
+ *  - `events` is APPEND-ONLY — enforced at the DB level by a trigger in the
+ *    migration `0001_events_append_only.sql` (UPDATE/DELETE raise an exception).
+ *  - Document hashes, certificate rows and the final sealed PDF are immutable
+ *    once written (enforced in application code; retention via object-lock).
+ *  - API keys store only a hash of a HIGH-ENTROPY random secret (SHA-256 is
+ *    appropriate + indexable here; slow KDFs are for low-entropy passwords).
  */
 import {
   AUDIT_EVENT_TYPES,
@@ -16,9 +20,10 @@ import {
   SIGNATURE_TYPES,
   SIGNER_STATUSES,
 } from '@penpact/core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   doublePrecision,
   index,
   integer,
@@ -42,7 +47,10 @@ export const actorType = pgEnum('actor_type', ['sender', 'signer', 'system']);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 };
 
 // ─── users ───
@@ -54,7 +62,8 @@ export const users = pgTable(
     name: text('name'),
     ...timestamps,
   },
-  (t) => [uniqueIndex('users_email_uq').on(t.email)],
+  // Case-insensitive uniqueness — auth lookups normalize to lower-case.
+  (t) => [uniqueIndex('users_email_lower_uq').on(sql`lower(${t.email})`)],
 );
 
 // ─── api_keys (store only a hash of the secret, never the raw key) ───
@@ -68,7 +77,7 @@ export const apiKeys = pgTable(
     name: text('name').notNull(),
     /** Short non-secret prefix shown in the dashboard (e.g. "pk_live_a1b2"). */
     prefix: text('prefix').notNull(),
-    /** SHA-256 (or argon2) hash of the full secret key. */
+    /** SHA-256 hash of the full high-entropy secret key. */
     keyHash: text('key_hash').notNull(),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
@@ -100,7 +109,9 @@ export const envelopes = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [index('envelopes_user_idx').on(t.userId), index('envelopes_status_idx').on(t.status)],
+  // Primary access pattern: a sender's envelopes, often filtered by status.
+  // The composite also serves user_id-only queries (leftmost prefix).
+  (t) => [index('envelopes_user_status_idx').on(t.userId, t.status)],
 );
 
 // ─── documents (stored PDF objects; immutable once sealed) ───
@@ -121,7 +132,13 @@ export const documents = pgTable(
     isFinal: boolean('is_final').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('documents_envelope_idx').on(t.envelopeId)],
+  (t) => [
+    index('documents_envelope_idx').on(t.envelopeId),
+    // At most one sealed final document per envelope.
+    uniqueIndex('documents_final_uq').on(t.envelopeId).where(sql`${t.isFinal}`),
+    check('documents_version_chk', sql`${t.version} >= 1`),
+    check('documents_bytesize_chk', sql`${t.byteSize} is null or ${t.byteSize} >= 0`),
+  ],
 );
 
 // ─── signers ───
@@ -157,7 +174,9 @@ export const signers = pgTable(
   },
   (t) => [
     uniqueIndex('signers_token_uq').on(t.signingToken),
-    index('signers_envelope_idx').on(t.envelopeId),
+    // Sequential signing resolves the next signer by (envelope, routing order).
+    index('signers_envelope_order_idx').on(t.envelopeId, t.routingOrder),
+    check('signers_routing_order_chk', sql`${t.routingOrder} >= 1`),
   ],
 );
 
@@ -186,7 +205,14 @@ export const fields = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('fields_envelope_idx').on(t.envelopeId), index('fields_signer_idx').on(t.signerId)],
+  (t) => [
+    index('fields_envelope_idx').on(t.envelopeId),
+    index('fields_signer_idx').on(t.signerId),
+    check(
+      'fields_geometry_chk',
+      sql`${t.page} >= 1 and ${t.x} >= 0 and ${t.y} >= 0 and ${t.width} > 0 and ${t.height} > 0`,
+    ),
+  ],
 );
 
 // ─── events (APPEND-ONLY audit trail — §8) ───
@@ -210,7 +236,9 @@ export const events = pgTable(
     metadata: jsonb('metadata'),
     timestampUtc: timestamp('timestamp_utc', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('events_envelope_idx').on(t.envelopeId), index('events_type_idx').on(t.type)],
+  // The audit trail is read in chronological order per envelope (timeline +
+  // Certificate of Completion), so index on (envelope, time).
+  (t) => [index('events_envelope_time_idx').on(t.envelopeId, t.timestampUtc)],
 );
 
 // ─── certificates (Certificate of Completion, one per envelope) ───
@@ -259,4 +287,8 @@ export const fieldsRelations = relations(fields, ({ one }) => ({
   envelope: one(envelopes, { fields: [fields.envelopeId], references: [envelopes.id] }),
   document: one(documents, { fields: [fields.documentId], references: [documents.id] }),
   signer: one(signers, { fields: [fields.signerId], references: [signers.id] }),
+}));
+
+export const certificatesRelations = relations(certificates, ({ one }) => ({
+  envelope: one(envelopes, { fields: [certificates.envelopeId], references: [envelopes.id] }),
 }));
