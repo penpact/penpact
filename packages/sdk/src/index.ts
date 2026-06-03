@@ -77,6 +77,8 @@ export interface EnvelopeCreateInput {
   expiresAt?: string;
   /** Re-nudge unsigned signers every N hours (1..8760). Omit to disable. */
   reminderEveryHours?: number;
+  /** Signer-facing language for the signing page + emails (en, es, fr, de). */
+  locale?: 'en' | 'es' | 'fr' | 'de';
 }
 
 export interface FieldInput {
