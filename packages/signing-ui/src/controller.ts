@@ -42,6 +42,8 @@ export interface SigningSessionData {
   consentDisclosure: ConsentDisclosure | null;
   /** When set, the signer must pass this challenge before the document is shown. */
   authRequired?: 'access_code' | 'email_otp';
+  /** The sending account's white-label branding. */
+  branding?: { name: string | null; color: string | null; logoUrl: string | null };
 }
 
 export interface ControllerDeps {

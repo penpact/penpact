@@ -282,3 +282,42 @@ export async function getUsage(db: Database, userId: string): Promise<Usage> {
     activeKeys: keys[0]?.n ?? 0,
   };
 }
+
+export interface Branding {
+  brandName: string | null;
+  brandColor: string | null;
+  brandLogoUrl: string | null;
+}
+
+export async function getBranding(db: Database, userId: string): Promise<Branding> {
+  const rows = await db
+    .select({
+      brandName: users.brandName,
+      brandColor: users.brandColor,
+      brandLogoUrl: users.brandLogoUrl,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0] ?? { brandName: null, brandColor: null, brandLogoUrl: null };
+}
+
+export async function setBranding(
+  db: Database,
+  userId: string,
+  input: {
+    brandName?: string | undefined;
+    brandColor?: string | undefined;
+    brandLogoUrl?: string | undefined;
+  },
+): Promise<Branding> {
+  await db
+    .update(users)
+    .set({
+      brandName: input.brandName ?? null,
+      brandColor: input.brandColor ?? null,
+      brandLogoUrl: input.brandLogoUrl ?? null,
+    })
+    .where(eq(users.id, userId));
+  return getBranding(db, userId);
+}

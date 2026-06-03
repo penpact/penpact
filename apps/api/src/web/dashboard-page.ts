@@ -194,6 +194,17 @@ async function renderApp(me, banner){
         '<div class="err" id="keyErr"></div>' +
       '</div>' +
       '<div class="card" id="keysCard"><p class="muted">Loading keys...</p></div>' +
+      '<h2>Branding</h2>' +
+      '<div class="card">' +
+        '<p class="muted" style="margin-top:0">White-label the signing page your recipients see. Free on every plan.</p>' +
+        '<div class="row" style="flex-wrap:wrap;gap:12px">' +
+          '<div style="flex:1;min-width:160px"><label for="brandName">Brand name</label><input id="brandName" type="text" placeholder="Acme Inc"></div>' +
+          '<div style="width:120px"><label for="brandColor">Color</label><input id="brandColor" type="text" placeholder="#5b8cff"></div>' +
+          '<div style="flex:2;min-width:200px"><label for="brandLogoUrl">Logo URL (https)</label><input id="brandLogoUrl" type="text" placeholder="https://…/logo.png"></div>' +
+        '</div>' +
+        '<button class="btn-primary" id="saveBrand" style="margin-top:12px">Save branding</button>' +
+        '<span id="brandErr" class="err" style="margin-left:10px"></span>' +
+      '</div>' +
       '<h2>Envelopes</h2>' +
       '<div class="card" id="envCard"><p class="muted">Loading envelopes…</p></div>' +
       '<h2>Use your key</h2>' +
@@ -209,7 +220,29 @@ async function renderApp(me, banner){
     "  documentName: 'NDA',\\n" +
     "  signers: [{ name: 'Ada', email: 'ada@example.com' }],\\n" +
     "});";
-  await Promise.all([loadStats(), loadKeys(), loadEnvelopes()]);
+  $('saveBrand').onclick = saveBranding;
+  await Promise.all([loadStats(), loadKeys(), loadEnvelopes(), loadBranding()]);
+}
+
+async function loadBranding(){
+  const res = await api('/branding'); if(!res.ok) return;
+  const b = await res.json();
+  if($('brandName')) $('brandName').value = b.brandName || '';
+  if($('brandColor')) $('brandColor').value = b.brandColor || '';
+  if($('brandLogoUrl')) $('brandLogoUrl').value = b.brandLogoUrl || '';
+}
+
+async function saveBranding(){
+  const err = $('brandErr'); err.textContent='';
+  const body = {};
+  const name = $('brandName').value.trim(); if(name) body.brandName = name;
+  const color = $('brandColor').value.trim(); if(color) body.brandColor = color;
+  const logo = $('brandLogoUrl').value.trim(); if(logo) body.brandLogoUrl = logo;
+  const btn = $('saveBrand'); btn.disabled = true;
+  const res = await api('/branding', { method:'PUT', body: JSON.stringify(body) });
+  btn.disabled = false;
+  if(res.ok){ err.style.color='var(--ok)'; err.textContent='Saved.'; }
+  else { err.style.color='var(--danger)'; const j = await res.json().catch(()=>({})); err.textContent = j.detail || 'Could not save. Check the color (#rrggbb) and URL.'; }
 }
 
 async function loadEnvelopes(){

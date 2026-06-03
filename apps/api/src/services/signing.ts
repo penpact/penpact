@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { type Database, documents, envelopes, fields, signers } from '@penpact/db';
+import { type Database, documents, envelopes, fields, signers, users } from '@penpact/db';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { CONSENT_DISCLOSURE } from '../consent.js';
 import { sha256Hex } from '../lib/crypto.js';
@@ -34,6 +34,8 @@ export interface SigningSession {
   consentDisclosure: { version: string; text: string; hash: string } | null;
   /** When set, the signer must pass this challenge before the document is shown. */
   authRequired?: StepUpMethod;
+  /** The sending account's white-label branding, applied to the signing UI. */
+  branding: { name: string | null; color: string | null; logoUrl: string | null };
 }
 
 const CLOSED_ENVELOPE_STATUSES = new Set(['completed', 'voided', 'expired', 'declined']);
@@ -217,6 +219,8 @@ export async function getSigningSession(
   }
   await requireSignerTurn(db, signer);
 
+  const branding = await loadBranding(db, envelope.userId);
+
   // Step-up auth gate: withhold the document until the challenge is passed.
   const method = stepUpMethod(signer);
   if (method && !signer.authPassedAt) {
@@ -233,6 +237,7 @@ export async function getSigningSession(
       consentRequired: false,
       consentDisclosure: null,
       authRequired: method,
+      branding,
     };
   }
 
@@ -295,7 +300,21 @@ export async function getSigningSession(
           text: CONSENT_DISCLOSURE.text,
           hash: CONSENT_DISCLOSURE.hash,
         },
+    branding,
   };
+}
+
+/** The sending account's white-label branding for the signing UI. */
+async function loadBranding(
+  db: Database,
+  userId: string,
+): Promise<{ name: string | null; color: string | null; logoUrl: string | null }> {
+  const rows = await db
+    .select({ name: users.brandName, color: users.brandColor, logoUrl: users.brandLogoUrl })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return rows[0] ?? { name: null, color: null, logoUrl: null };
 }
 
 export async function acceptConsent(

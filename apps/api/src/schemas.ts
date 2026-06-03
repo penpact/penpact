@@ -14,6 +14,15 @@ export const authenticateSchema = z.object({
   code: z.string().min(1).max(64),
 });
 
+export const brandingSchema = z.object({
+  brandName: z.string().min(1).max(80).optional(),
+  brandColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color like #5b8cff')
+    .optional(),
+  brandLogoUrl: z.string().url().max(2048).optional(),
+});
+
 export const envelopeCreateSchema = z.object({
   documentName: z.string().min(1).max(255),
   signers: z.array(signerCreateSchema).min(1),

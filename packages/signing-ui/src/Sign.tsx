@@ -195,6 +195,11 @@ export function Sign(props: SignProps): JSX.Element {
   }
 
   const cls = props.className ? `penpact-sign ${props.className}` : 'penpact-sign';
+  // Apply the sending account's brand color as a CSS variable the host can use.
+  const brandColor = session?.branding?.color ?? undefined;
+  const rootStyle = brandColor
+    ? ({ ['--penpact-brand' as string]: brandColor } as React.CSSProperties)
+    : undefined;
 
   if (phase === 'loading') return <div className={cls}>Loading document…</div>;
   if (phase === 'gone') return <div className={cls}>This signing link is no longer active.</div>;
@@ -241,7 +246,7 @@ export function Sign(props: SignProps): JSX.Element {
       : [{ id: 'doc', documentUrl: documentUrl(deps), pageCount: null }];
 
   return (
-    <div className={cls}>
+    <div className={cls} style={rootStyle}>
       {docList.map((d, i) => (
         <iframe
           key={d.id}

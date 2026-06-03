@@ -131,7 +131,21 @@ function showState(kind, big, sub){
     '</div>';
 }
 
+function applyBranding(){
+  const b = session.branding || {};
+  if (b.color) document.documentElement.style.setProperty("--brand", b.color);
+  const logo = $("brandLogo");
+  if (logo){
+    if (b.logoUrl){
+      logo.innerHTML = '<img src="' + esc(b.logoUrl) + '" alt="' + esc(b.name || "Logo") + '" style="height:24px;display:block">';
+    } else if (b.name){
+      logo.textContent = b.name;
+    }
+  }
+}
+
 function render(){
+  applyBranding();
   $("docName").textContent = session.documentName || "Document";
   if (session.authRequired){
     $("viewer").innerHTML = '<div style="color:#9aa3b2;padding:40px;text-align:center">Verify your identity to view this document.</div>';
@@ -350,7 +364,7 @@ export function signPageHtml(token: string): string {
 </head>
 <body>
 <header class="top">
-  <div class="logo">Pen<span>pact</span></div>
+  <div class="logo" id="brandLogo">Pen<span>pact</span></div>
   <div class="doc-name" id="docName">Loading document...</div>
 </header>
 <div class="layout">

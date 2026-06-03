@@ -69,6 +69,10 @@ export const users = pgTable(
     /** scrypt password hash for dashboard sign-in. Null for CLI-created users. */
     passwordHash: text('password_hash'),
     emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+    /** White-label branding applied to this account's signing experience. */
+    brandName: text('brand_name'),
+    brandColor: text('brand_color'),
+    brandLogoUrl: text('brand_logo_url'),
     ...timestamps,
   },
   // Case-insensitive uniqueness — auth lookups normalize to lower-case.

@@ -8,6 +8,7 @@ import { csrfProtect } from '../middleware/csrf.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { SESSION_COOKIE, sessionAuth } from '../middleware/session.js';
 import {
+  brandingSchema,
   createKeySchema,
   createWebhookEndpointSchema,
   credentialsSchema,
@@ -18,6 +19,7 @@ import {
 import {
   createApiKey,
   createEmailVerifyToken,
+  getBranding,
   getSessionUser,
   getUsage,
   listApiKeys,
@@ -27,6 +29,7 @@ import {
   resetPassword,
   revokeApiKey,
   type SessionResult,
+  setBranding,
   signUp,
   verifyEmail,
 } from '../services/accounts.js';
@@ -153,6 +156,15 @@ api.delete('/api-keys/:id', async (c) => {
 
 api.get('/usage', async (c) => {
   return c.json(await getUsage(c.get('db'), c.get('userId')));
+});
+
+// ─── White-label branding (free, applied to the signing experience) ───
+api.get('/branding', async (c) => {
+  return c.json(await getBranding(c.get('db'), c.get('userId')));
+});
+
+api.put('/branding', validateJson(brandingSchema), async (c) => {
+  return c.json(await setBranding(c.get('db'), c.get('userId'), c.req.valid('json')));
 });
 
 // ─── Envelopes (the account's own documents, by cookie session) ───
