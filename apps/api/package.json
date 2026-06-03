@@ -24,12 +24,17 @@
     "./webhooks": {
       "import": "./dist/services/webhooks.js",
       "default": "./dist/services/webhooks.js"
+    },
+    "./keys": {
+      "import": "./dist/services/keys.js",
+      "default": "./dist/services/keys.js"
     }
   },
   "scripts": {
     "build": "tsc -b",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "bootstrap": "tsx src/bin/bootstrap.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",

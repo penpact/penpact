@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { app } from '@penpact/api';
 import { generateApiKey } from '@penpact/api/crypto';
+import { createApiKeyForEmail } from '@penpact/api/keys';
 import { apiKeys, createDatabase, type Database, signers, users } from '@penpact/db';
+import { PenpactClient } from '@penpact/sdk';
 import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { PDFDocument } from 'pdf-lib';
@@ -264,5 +266,54 @@ describe.skipIf(!url)('envelopes (integration)', () => {
 
   it('404s an unknown signing token', async () => {
     expect((await app.request('/v1/sign/nope-not-a-token')).status).toBe(404);
+  });
+
+  it('drives the API through the official SDK', async () => {
+    const client = new PenpactClient({
+      apiKey,
+      baseUrl: 'http://sdk.test',
+      fetch: (url, init) => app.request(String(url), init as RequestInit),
+    });
+
+    const env = await client.createEnvelope({
+      documentName: 'SDK NDA',
+      signers: [{ name: 'Bob', email: 'bob@example.com' }],
+    });
+    expect(env.status).toBe('draft');
+
+    await client.uploadDocument(env.id, await onePagePdf());
+    const placed = await client.placeFields(env.id, [
+      {
+        type: 'signature',
+        signerId: env.signers[0].id,
+        page: 1,
+        x: 100,
+        y: 100,
+        width: 150,
+        height: 40,
+      },
+    ]);
+    expect(placed).toHaveLength(1);
+
+    const sent = await client.send(env.id);
+    expect(sent.status).toBe('sent');
+
+    const page = await client.listEnvelopes({ limit: 5 });
+    expect(page.data.length).toBeGreaterThanOrEqual(1);
+
+    const pdf = await client.downloadDocument(env.id);
+    expect(pdf.byteLength).toBeGreaterThan(0);
+  });
+
+  it('mints a working API key for an email (case-insensitive find-or-create)', async () => {
+    const first = await createApiKeyForEmail(db, 'founder@penpact.test');
+    const second = await createApiKeyForEmail(db, 'FOUNDER@penpact.test');
+    expect(first.userId).toBe(second.userId);
+    expect(first.key).not.toBe(second.key);
+
+    const res = await app.request('/v1/envelopes?limit=1', {
+      headers: { authorization: `Bearer ${first.key}` },
+    });
+    expect(res.status).toBe(200);
   });
 });
