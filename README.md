@@ -46,7 +46,16 @@ and painful to integrate. Penpact is the engine you embed so **your** users sign
 import { PenpactClient } from '@penpact/sdk';
 
 const penpact = new PenpactClient({ apiKey: process.env.PENPACT_API_KEY! });
-// envelope create / send / download — coming with the first release.
+
+const envelope = await penpact.createEnvelope({
+  documentName: 'NDA',
+  signers: [{ name: 'Bob', email: 'bob@example.com' }],
+});
+await penpact.uploadDocument(envelope.id, pdfBytes);
+await penpact.placeFields(envelope.id, [
+  { type: 'signature', signerId: envelope.signers[0].id, page: 1, x: 100, y: 600, width: 180, height: 40 },
+]);
+await penpact.send(envelope.id);
 ```
 
 ### Self-host in minutes
@@ -70,9 +79,9 @@ Mint more keys with: `docker compose exec api node apps/api/dist/bin/bootstrap.j
 |---|---|---|---|---|
 | Open source | ✅ AGPL-3.0 | ❌ | ❌ | ✅ |
 | Embeddable drop-in component | ✅ (planned) | ⚠️ iframe | ⚠️ iframe | ⚠️ |
-| AI field detection | ✅ (planned) | ⚠️ add-on | ❌ | ❌ |
+| AI field detection | ✅ | ⚠️ add-on | ❌ | ❌ |
 | Pricing model | usage-based, no seats | per-envelope, seats | per-signature | self-host / SaaS |
-| First-class TypeScript SDK | ✅ (planned) | ⚠️ | ⚠️ | ⚠️ |
+| First-class TypeScript SDK | ✅ | ⚠️ | ⚠️ | ⚠️ |
 
 *Comparison reflects public positioning as of 2026; verify current vendor details before relying on it.*
 
