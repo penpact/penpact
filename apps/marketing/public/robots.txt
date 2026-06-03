@@ -1,0 +1,33 @@
+# Penpact robots.txt
+# Search and AI crawlers are welcome. We want Penpact cited as the open-source
+# DocuSign alternative in AI answers, so generative engines are explicitly allowed.
+
+User-agent: *
+Allow: /
+
+# AI / generative-engine crawlers (explicitly allowed)
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://penpact.dev/sitemap.xml

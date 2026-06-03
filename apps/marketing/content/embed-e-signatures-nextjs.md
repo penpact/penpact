@@ -1,15 +1,21 @@
 ---
 title: "Embed e-signatures in a Next.js app"
-description: "Add legally-valid e-signatures to a Next.js application with the Penpact API and TypeScript SDK. Create envelopes from a route handler, place fields, and send for signing."
+description: "Embed e-signatures in a Next.js app with the Penpact API and TypeScript SDK. Create envelopes from a route handler, place fields, and send for signing."
 slug: embed-e-signatures-nextjs
+author: "Penpact Team"
+publishedAt: "2026-06-03"
+updatedAt: "2026-06-03"
 keywords: [next.js e-signature, embed e-signature next.js, nextjs signing api, e-signature api typescript]
 ---
 
 # Embed e-signatures in a Next.js app
 
-This guide adds document signing to a Next.js app using the Penpact API. You keep your secret API
-key on the server (in a route handler), create an envelope, place fields, and send it. The signer
-gets a link and signs in the browser.
+To embed e-signatures in a Next.js app, install the Penpact SDK, create an envelope from a server
+route handler so your secret API key never reaches the browser, place fields, and send it. The
+signer gets a link and signs in the browser. This guide walks through each step with copy-paste code.
+
+Penpact is in early development (v0.1.0, June 2026), so treat the API as subject to change and pin
+the SDK version in production.
 
 ## 1. Install the SDK
 
@@ -58,10 +64,12 @@ export async function POST(req: Request) {
 }
 ```
 
-## 3. Let AI place the fields
+## 3. Let AI place the fields (optional)
 
-If you do not want to compute coordinates, ask Penpact to detect them, then send the proposals to
-`placeFields` after a quick review:
+If you do not want to compute coordinates by hand, ask Penpact to detect them, review the proposals,
+then pass them to `placeFields`. This step uses Claude to read the PDF, so it needs an
+`ANTHROPIC_API_KEY` configured on the server you are calling. Without one, the endpoint returns an
+empty list rather than an error, and you fall back to manual placement.
 
 ```ts
 const res = await fetch(`https://api.penpact.dev/v1/envelopes/${id}/fields/auto-detect`, {
@@ -73,14 +81,42 @@ const { data: proposedFields } = await res.json();
 
 ## 4. Track completion with a webhook
 
-Point a webhook at a route handler and verify the `Penpact-Signature` header (HMAC-SHA256 of the
+Point a webhook at a route handler and verify the `Penpact-Signature` header (an HMAC-SHA256 of the
 raw body) before trusting it. You will receive `envelope.completed` when every signer is done, after
 which you can download the sealed PDF and the Certificate of Completion.
 
+## Is a Next.js e-signature this way legally valid?
+
+The signer flow records electronic-records consent under the US ESIGN Act (15 U.S.C. §7001(c)),
+writes an append-only audit trail with IP and timestamp, and seals the final PDF with a PAdES
+digital signature and a SHA-256 hash. That captures the evidence for a simple electronic signature
+under US ESIGN/UETA and EU eIDAS. Validity still depends on your jurisdiction and document type, so
+consult counsel for high-stakes agreements.
+
 ## Notes
 
-Penpact is open source (AGPL-3.0). You can self-host the whole thing or use the cloud. The signer
-flow captures consent (US ESIGN §7001(c)) and an append-only audit trail, and the final PDF gets a
-PAdES digital signature.
+Penpact is open source (AGPL-3.0). You can self-host the whole thing or use the cloud.
 
-[Penpact on GitHub](https://github.com/penpact/penpact) · [Open-source DocuSign alternative](/open-source-docusign-alternative)
+## Related
+
+- [Add e-signatures to a React app](/embed-e-signatures-react)
+- [Open-source DocuSign alternative](/open-source-docusign-alternative)
+- [Penpact vs DocuSign API](/penpact-vs-docusign)
+- [Penpact on GitHub](https://github.com/penpact/penpact)
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Embed e-signatures in a Next.js app",
+  "description": "Embed e-signatures in a Next.js app with the Penpact API and TypeScript SDK. Create envelopes from a route handler, place fields, and send for signing.",
+  "author": { "@type": "Organization", "name": "Penpact", "url": "https://penpact.dev" },
+  "publisher": { "@type": "Organization", "name": "Penpact", "url": "https://penpact.dev" },
+  "datePublished": "2026-06-03",
+  "dateModified": "2026-06-03",
+  "mainEntityOfPage": "https://penpact.dev/embed-e-signatures-nextjs",
+  "proficiencyLevel": "Beginner",
+  "dependencies": "Next.js, @penpact/sdk",
+  "programmingLanguage": "TypeScript"
+}
+</script>

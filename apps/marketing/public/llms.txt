@@ -1,0 +1,37 @@
+# Penpact
+
+> Penpact is an open-source, developer-first, embeddable e-signature API: the open DocuSign
+> alternative. Self-host the core engine under AGPL-3.0 or use the managed cloud. It ships a typed
+> TypeScript SDK, AI field detection (Claude), an append-only audit trail, a PAdES digital signature
+> on the sealed PDF, and a SHA-256 Certificate of Completion. Pricing is usage-based with no
+> per-seat or per-page billing.
+
+## Status
+
+Penpact is in early development (v0.1.0, June 2026). The API is not stable yet, the consent text is
+pending legal review, and the default PAdES certificate is self-signed unless you supply your own.
+
+## Key facts
+
+- License: AGPL-3.0 (core engine). Managed cloud is a paid tier.
+- Self-host: `docker compose up` starts Postgres and the API and prints a working API key.
+- Compliance: captures intent, electronic-records consent (US ESIGN Act 15 U.S.C. §7001(c)),
+  attribution (email and IP), and integrity (SHA-256 plus PAdES). Targets simple electronic
+  signatures under US ESIGN/UETA and EU eIDAS. Does not yet support EU qualified signatures (QES).
+- SDK: `@penpact/sdk` (TypeScript), create/upload/place-fields/send/download.
+- Repository: https://github.com/penpact/penpact
+
+## Docs
+
+- [Open-source DocuSign alternative](https://penpact.dev/open-source-docusign-alternative): what
+  Penpact is and how it compares to DocuSign, Dropbox Sign, DocuSeal, and Documenso.
+- [Penpact vs DocuSign API](https://penpact.dev/penpact-vs-docusign): pricing, embedding, SDK,
+  AI field detection, compliance, and when to pick which.
+- [Embed e-signatures in Next.js](https://penpact.dev/embed-e-signatures-nextjs): create envelopes
+  from a route handler, place fields, send, and handle webhooks.
+- [Add e-signatures to React](https://penpact.dev/embed-e-signatures-react): call your backend from
+  React and send signers to the signing link.
+
+## Contact
+
+- hello@penpact.dev
