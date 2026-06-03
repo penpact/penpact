@@ -44,6 +44,11 @@ export const signatureType = pgEnum('signature_type', SIGNATURE_TYPES);
 export const fieldType = pgEnum('field_type', FIELD_TYPES);
 export const auditEventType = pgEnum('audit_event_type', AUDIT_EVENT_TYPES);
 export const actorType = pgEnum('actor_type', ['sender', 'signer', 'system']);
+export const webhookDeliveryStatus = pgEnum('webhook_delivery_status', [
+  'pending',
+  'succeeded',
+  'failed',
+]);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -86,6 +91,52 @@ export const sessions = pgTable(
   (t) => [
     uniqueIndex('sessions_token_uq').on(t.tokenHash),
     index('sessions_user_idx').on(t.userId),
+  ],
+);
+
+// ─── webhook_endpoints (per-customer delivery targets; each has its own secret) ───
+export const webhookEndpoints = pgTable(
+  'webhook_endpoints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    /** Shared HMAC signing secret (`whsec_…`); needed in plaintext to sign sends. */
+    secret: text('secret').notNull(),
+    description: text('description'),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('webhook_endpoints_user_idx').on(t.userId)],
+);
+
+// ─── webhook_deliveries (durable queue + audit log) ───
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    endpointId: uuid('endpoint_id')
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: 'cascade' }),
+    eventId: text('event_id').notNull(),
+    eventType: text('event_type').notNull(),
+    payload: jsonb('payload').notNull(),
+    status: webhookDeliveryStatus('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(6),
+    lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    responseStatus: integer('response_status'),
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('webhook_deliveries_endpoint_idx').on(t.endpointId),
+    // The worker scans for due pending deliveries.
+    index('webhook_deliveries_due_idx').on(t.status, t.nextAttemptAt),
+    check('webhook_deliveries_attempts_chk', sql`${t.attempts} >= 0`),
   ],
 );
 
@@ -287,10 +338,23 @@ export const usersRelations = relations(users, ({ many }) => ({
   apiKeys: many(apiKeys),
   envelopes: many(envelopes),
   sessions: many(sessions),
+  webhookEndpoints: many(webhookEndpoints),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, { fields: [sessions.userId], references: [users.id] }),
+}));
+
+export const webhookEndpointsRelations = relations(webhookEndpoints, ({ one, many }) => ({
+  user: one(users, { fields: [webhookEndpoints.userId], references: [users.id] }),
+  deliveries: many(webhookDeliveries),
+}));
+
+export const webhookDeliveriesRelations = relations(webhookDeliveries, ({ one }) => ({
+  endpoint: one(webhookEndpoints, {
+    fields: [webhookDeliveries.endpointId],
+    references: [webhookEndpoints.id],
+  }),
 }));
 
 export const envelopesRelations = relations(envelopes, ({ one, many }) => ({
