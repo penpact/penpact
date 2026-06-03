@@ -72,6 +72,9 @@ export interface EnvelopeCreateInput {
 export interface FieldInput {
   type: FieldType;
   signerId: string;
+  /** Which source document this field belongs to. Optional for single-document
+   * envelopes; required when the envelope holds more than one document. */
+  documentId?: string;
   page: number;
   x: number;
   y: number;
