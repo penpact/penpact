@@ -60,6 +60,10 @@
     "./logger": {
       "import": "./dist/lib/logger.js",
       "default": "./dist/lib/logger.js"
+    },
+    "./pdf": {
+      "import": "./dist/services/pdf.js",
+      "default": "./dist/services/pdf.js"
     }
   },
   "scripts": {

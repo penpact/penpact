@@ -43,6 +43,22 @@ describe('signing-ui controller', () => {
     }
   });
 
+  it('buildFieldValues puts a drawn signature value on the signature field', () => {
+    const fields: Field[] = [
+      { id: 'sig', type: 'signature', signerId: 's' },
+      { id: 'nm', type: 'name', signerId: 's' },
+    ];
+    const png = 'data:image/png;base64,AAAA';
+    const result = buildFieldValues(fields, 'Ada Lovelace', {}, png);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.values).toEqual([
+        { fieldId: 'sig', value: png },
+        { fieldId: 'nm', value: 'Ada Lovelace' },
+      ]);
+    }
+  });
+
   it('buildFieldValues uses provided inputs for text/date and skips empty optionals', () => {
     const fields: Field[] = [
       { id: 'd', type: 'date', signerId: 's' },

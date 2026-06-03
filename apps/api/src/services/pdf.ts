@@ -10,6 +10,17 @@ interface FlattenField {
   value: string | null;
 }
 
+/** Decode a `data:image/png;base64,...` value to bytes, or null if it is not one. */
+export function parsePngDataUrl(value: string): Uint8Array | null {
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(value.trim());
+  if (!match?.[1]) return null;
+  try {
+    return new Uint8Array(Buffer.from(match[1], 'base64'));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Flatten signer-entered values onto the source PDF. Field coordinates use a
  * top-left origin (per our schema); pdf-lib uses bottom-left, hence the flip.
@@ -34,6 +45,21 @@ export async function buildFinalPdf(
       continue;
     }
     const { height } = page.getSize();
+
+    // Drawn / uploaded signatures arrive as a PNG data URL — embed the image
+    // into the field box. Everything else is flattened as text.
+    const png = parsePngDataUrl(field.value);
+    if (png) {
+      const image = await pdf.embedPng(png);
+      page.drawImage(image, {
+        x: field.x,
+        y: height - field.y - field.height,
+        width: field.width,
+        height: field.height,
+      });
+      continue;
+    }
+
     const size = Math.min(14, Math.max(8, field.height * 0.6));
     page.drawText(field.value, {
       x: field.x,

@@ -94,11 +94,15 @@ export function buildFieldValues(
   fields: SignerField[],
   fullName: string,
   inputs: Record<string, string>,
+  signatureValue?: string,
 ): BuildResult {
   const values: Array<{ fieldId: string; value: string }> = [];
   for (const f of fields) {
     let value: string;
-    if (f.type === 'signature' || f.type === 'name') {
+    if (f.type === 'signature') {
+      // A drawn/uploaded signature (PNG data URL) when provided, else the name.
+      value = signatureValue ?? fullName;
+    } else if (f.type === 'name') {
       value = fullName;
     } else if (f.type === 'initials') {
       value = initialsOf(fullName);

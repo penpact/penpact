@@ -54,6 +54,10 @@ label.check input { margin-top: 3px; }
   font-family: "Snell Roundhand", "Brush Script MT", "Segoe Script", cursive;
   font-size: 30px; line-height: 1; margin-top: 6px; overflow: hidden;
 }
+.sigtabs { display: flex; gap: 8px; margin: 6px 0; }
+.sigtabs button { background: var(--field); border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 14px; }
+.sigtabs button.active { color: var(--ink); border-color: var(--brand); }
+#sigCanvas { background: #fff; border: 1px solid var(--line); border-radius: 8px; touch-action: none; max-width: 100%; display: block; }
 button {
   font: inherit; border: 0; border-radius: 8px; padding: 11px 16px; cursor: pointer;
 }
@@ -99,6 +103,9 @@ function initialsOf(name){ return (name||"").split(/\\s+/).filter(Boolean).map(w
 function today(){ const d=new Date(); return d.toISOString().slice(0,10); }
 
 let session = null;
+let signMode = "type";
+let signDrawn = false;
+let signCanvas = null;
 
 async function load(){
   try {
@@ -164,10 +171,17 @@ function renderSign(){
   const myFields = (session.fields || []).filter(f => f.signerId === session.signer.id);
   let html =
     '<h2>Adopt your signature</h2>' +
-    '<p class="lead">Type your full legal name. This is your electronic signature.</p>' +
+    '<p class="lead">Type your full legal name, then type or draw your signature.</p>' +
     '<div class="field"><label for="fullName">Full name</label>' +
-      '<input type="text" id="fullName" value="' + esc(name) + '" autocomplete="name">' +
-      '<div class="sig-preview" id="sigPreview">' + esc(name) + '</div></div>';
+      '<input type="text" id="fullName" value="' + esc(name) + '" autocomplete="name"></div>' +
+    '<div class="field"><label>Signature</label>' +
+      '<div class="sigtabs"><button type="button" id="tabType" class="active">Type</button>' +
+        '<button type="button" id="tabDraw">Draw</button></div>' +
+      '<div id="typeWrap"><div class="sig-preview" id="sigPreview">' + esc(name) + '</div></div>' +
+      '<div id="drawWrap" style="display:none">' +
+        '<canvas id="sigCanvas" width="360" height="120"></canvas>' +
+        '<button type="button" class="btn-ghost" id="clearCanvas" style="margin-top:6px">Clear</button>' +
+      '</div></div>';
 
   const extra = myFields.filter(f => !["signature","initials","name"].includes(f.type));
   for (const f of extra) {
@@ -194,6 +208,35 @@ function renderSign(){
   $("fullName").addEventListener("input", (e) => { $("sigPreview").textContent = e.target.value; });
   $("signBtn").addEventListener("click", () => submitSign(myFields));
   $("declineBtn").addEventListener("click", submitDecline);
+
+  // Type / Draw signature.
+  signMode = "type"; signDrawn = false;
+  signCanvas = $("sigCanvas");
+  const ctx = signCanvas.getContext("2d");
+  let drawing = false;
+  function setMode(m){
+    signMode = m;
+    $("tabType").classList.toggle("active", m === "type");
+    $("tabDraw").classList.toggle("active", m === "draw");
+    $("typeWrap").style.display = m === "type" ? "block" : "none";
+    $("drawWrap").style.display = m === "draw" ? "block" : "none";
+  }
+  $("tabType").addEventListener("click", () => setMode("type"));
+  $("tabDraw").addEventListener("click", () => setMode("draw"));
+  signCanvas.addEventListener("pointerdown", (e) => {
+    signCanvas.setPointerCapture(e.pointerId);
+    const r = signCanvas.getBoundingClientRect();
+    ctx.beginPath(); ctx.moveTo(e.clientX - r.left, e.clientY - r.top); drawing = true;
+  });
+  signCanvas.addEventListener("pointermove", (e) => {
+    if (!drawing) return;
+    const r = signCanvas.getBoundingClientRect();
+    ctx.lineTo(e.clientX - r.left, e.clientY - r.top);
+    ctx.strokeStyle = "#111"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.stroke();
+    signDrawn = true;
+  });
+  signCanvas.addEventListener("pointerup", () => { drawing = false; });
+  $("clearCanvas").addEventListener("click", () => { ctx.clearRect(0, 0, signCanvas.width, signCanvas.height); signDrawn = false; });
 }
 
 function fieldWrap(id, label, inner){
@@ -207,10 +250,17 @@ async function submitSign(myFields){
   if (!fullName) { err.textContent = "Enter your full name to sign."; return; }
   const initials = initialsOf(fullName);
 
+  let signatureValue = null;
+  if (signMode === "draw") {
+    if (!signDrawn || !signCanvas) { err.textContent = "Draw your signature, or switch to Type."; return; }
+    signatureValue = signCanvas.toDataURL("image/png");
+  }
+
   const values = [];
   for (const f of myFields) {
     let v = "";
-    if (f.type === "signature" || f.type === "name") v = fullName;
+    if (f.type === "signature") v = signatureValue || fullName;
+    else if (f.type === "name") v = fullName;
     else if (f.type === "initials") v = initials;
     else {
       const el = document.getElementById("f_" + f.id);
@@ -225,7 +275,7 @@ async function submitSign(myFields){
   try {
     const res = await fetch(api("/complete"), {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ signatureType: "typed", fields: values }),
+      body: JSON.stringify({ signatureType: signMode === "draw" ? "drawn" : "typed", fields: values }),
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     showState("ok", "You're all set.", "This document has been signed. A copy and the certificate of completion will be available to the sender.");

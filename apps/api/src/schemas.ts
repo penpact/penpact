@@ -42,8 +42,10 @@ export const consentSchema = z.object({
 
 export const completeSchema = z.object({
   signatureType: z.enum(SIGNATURE_TYPES),
+  // Values are typed text or a drawn-signature PNG data URL (kept generous but
+  // bounded so a single field cannot be used to push megabytes of payload).
   fields: z
-    .array(z.object({ fieldId: z.string().uuid(), value: z.string().max(10_000) }))
+    .array(z.object({ fieldId: z.string().uuid(), value: z.string().max(1_000_000) }))
     .default([]),
 });
 

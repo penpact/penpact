@@ -49,6 +49,10 @@ export function Sign(props: SignProps): JSX.Element {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [mode, setMode] = useState<'type' | 'draw'>('type');
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawnRef = useRef(false);
+  const drawingRef = useRef(false);
 
   // Keep the latest onError without making it a load-effect dependency, so a
   // parent re-render (new callback identity) does not re-fetch the session.
@@ -98,6 +102,14 @@ export function Sign(props: SignProps): JSX.Element {
     else setErr('Could not record your consent. Please try again.');
   }
 
+  function clearCanvas(): void {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    drawnRef.current = false;
+  }
+
   async function sign(): Promise<void> {
     if (!session) return;
     setErr('');
@@ -106,13 +118,24 @@ export function Sign(props: SignProps): JSX.Element {
       setErr('Enter your full name to sign.');
       return;
     }
-    const built = buildFieldValues(myFields, name, inputs);
+    let signatureValue: string | undefined;
+    if (mode === 'draw') {
+      if (!drawnRef.current || !canvasRef.current) {
+        setErr('Draw your signature, or switch to Type.');
+        return;
+      }
+      signatureValue = canvasRef.current.toDataURL('image/png');
+    }
+    const built = buildFieldValues(myFields, name, inputs, signatureValue);
     if (!built.ok) {
       setErr(built.error);
       return;
     }
     setBusy(true);
-    const res = await postComplete(deps, { signatureType: 'typed', fields: built.values });
+    const res = await postComplete(deps, {
+      signatureType: mode === 'draw' ? 'drawn' : 'typed',
+      fields: built.values,
+    });
     setBusy(false);
     if (res.ok) {
       setPhase('done');
@@ -172,18 +195,70 @@ export function Sign(props: SignProps): JSX.Element {
               onChange={(e) => setFullName(e.target.value)}
             />
           </label>
-          <div
-            className="penpact-sign__preview"
-            style={{
-              fontFamily: 'cursive',
-              fontSize: 28,
-              background: '#fff',
-              color: '#111',
-              padding: '6px 10px',
-            }}
-          >
-            {fullName}
+          <div className="penpact-sign__methods" style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
+            <button
+              type="button"
+              aria-pressed={mode === 'type'}
+              onClick={() => setMode('type')}
+              style={{ fontWeight: mode === 'type' ? 700 : 400 }}
+            >
+              Type
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === 'draw'}
+              onClick={() => setMode('draw')}
+              style={{ fontWeight: mode === 'draw' ? 700 : 400 }}
+            >
+              Draw
+            </button>
           </div>
+
+          {mode === 'type' ? (
+            <div
+              className="penpact-sign__preview"
+              style={{ fontFamily: 'cursive', fontSize: 28, background: '#fff', color: '#111', padding: '6px 10px' }}
+            >
+              {fullName}
+            </div>
+          ) : (
+            <div className="penpact-sign__draw">
+              <canvas
+                ref={canvasRef}
+                width={360}
+                height={120}
+                style={{ background: '#fff', border: '1px solid #ccc', touchAction: 'none', display: 'block', maxWidth: '100%' }}
+                onPointerDown={(e) => {
+                  const c = canvasRef.current;
+                  const ctx = c?.getContext('2d');
+                  if (!c || !ctx) return;
+                  c.setPointerCapture(e.pointerId);
+                  const r = c.getBoundingClientRect();
+                  ctx.beginPath();
+                  ctx.moveTo(e.clientX - r.left, e.clientY - r.top);
+                  drawingRef.current = true;
+                }}
+                onPointerMove={(e) => {
+                  const c = canvasRef.current;
+                  const ctx = c?.getContext('2d');
+                  if (!c || !ctx || !drawingRef.current) return;
+                  const r = c.getBoundingClientRect();
+                  ctx.lineTo(e.clientX - r.left, e.clientY - r.top);
+                  ctx.strokeStyle = '#111';
+                  ctx.lineWidth = 2;
+                  ctx.lineCap = 'round';
+                  ctx.stroke();
+                  drawnRef.current = true;
+                }}
+                onPointerUp={() => {
+                  drawingRef.current = false;
+                }}
+              />
+              <button type="button" onClick={clearCanvas} style={{ marginTop: 6 }}>
+                Clear
+              </button>
+            </div>
+          )}
 
           {extraFields.map((f) => (
             <label key={f.id}>
