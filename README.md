@@ -62,6 +62,13 @@ await penpact.send(envelope.id);
 
 ### Self-host in minutes
 
+One click (each provisions Postgres + the API from this repo):
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/penpact/penpact)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/penpact/penpact)
+
+…or with Docker:
+
 ```bash
 docker compose up
 ```

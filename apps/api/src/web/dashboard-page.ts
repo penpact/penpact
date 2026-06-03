@@ -292,6 +292,9 @@ async function loadStats(){
   const u = await res.json();
   $('stats').innerHTML =
     stat(u.envelopesTotal, 'Envelopes (total)') +
+    stat(u.completed != null ? u.completed : '-', 'Completed') +
+    stat(u.pending != null ? u.pending : '-', 'In progress') +
+    stat((u.completionRate != null ? u.completionRate : 0) + '%', 'Completion rate') +
     stat(u.envelopesThisMonth, 'This month') +
     stat(u.activeKeys, 'Active keys');
 }

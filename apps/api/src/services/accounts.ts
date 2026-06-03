@@ -6,7 +6,7 @@
  * (no user enumeration), and only hashes of secrets are stored.
  */
 import { apiKeys, type Database, envelopes, sessions, users } from '@penpact/db';
-import { and, count, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { generateSessionToken, sha256Hex } from '../lib/crypto.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { HttpProblem } from '../lib/problem.js';
@@ -264,6 +264,9 @@ export interface Usage {
   envelopesTotal: number;
   envelopesThisMonth: number;
   activeKeys: number;
+  completed: number;
+  pending: number;
+  completionRate: number;
 }
 
 export async function getUsage(db: Database, userId: string): Promise<Usage> {
@@ -271,7 +274,7 @@ export async function getUsage(db: Database, userId: string): Promise<Usage> {
   startOfMonth.setUTCDate(1);
   startOfMonth.setUTCHours(0, 0, 0, 0);
 
-  const [total, month, keys] = await Promise.all([
+  const [total, month, keys, completed, pending] = await Promise.all([
     db.select({ n: count() }).from(envelopes).where(eq(envelopes.userId, userId)),
     db
       .select({ n: count() })
@@ -281,12 +284,30 @@ export async function getUsage(db: Database, userId: string): Promise<Usage> {
       .select({ n: count() })
       .from(apiKeys)
       .where(and(eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt))),
+    db
+      .select({ n: count() })
+      .from(envelopes)
+      .where(and(eq(envelopes.userId, userId), eq(envelopes.status, 'completed'))),
+    db
+      .select({ n: count() })
+      .from(envelopes)
+      .where(
+        and(
+          eq(envelopes.userId, userId),
+          inArray(envelopes.status, ['sent', 'viewed', 'partially_signed']),
+        ),
+      ),
   ]);
 
+  const total0 = total[0]?.n ?? 0;
+  const completed0 = completed[0]?.n ?? 0;
   return {
-    envelopesTotal: total[0]?.n ?? 0,
+    envelopesTotal: total0,
     envelopesThisMonth: month[0]?.n ?? 0,
     activeKeys: keys[0]?.n ?? 0,
+    completed: completed0,
+    pending: pending[0]?.n ?? 0,
+    completionRate: total0 > 0 ? Math.round((completed0 / total0) * 100) : 0,
   };
 }
 
