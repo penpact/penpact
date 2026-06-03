@@ -104,3 +104,17 @@ export async function loadEvents(db: Database, envelopeId: string): Promise<Even
     .where(eq(events.envelopeId, envelopeId))
     .orderBy(asc(events.timestampUtc));
 }
+
+/**
+ * Owner-scoped audit trail for the dashboard. Throws 404 (via requireEnvelope)
+ * if the envelope is not owned by `userId`, so it doubles as the access check.
+ */
+export async function listEnvelopeEvents(
+  db: Database,
+  userId: string,
+  envelopeId: string,
+): Promise<AuditEvent[]> {
+  await requireEnvelope(db, userId, envelopeId);
+  const rows = await loadEvents(db, envelopeId);
+  return rows.map(toAuditEvent);
+}

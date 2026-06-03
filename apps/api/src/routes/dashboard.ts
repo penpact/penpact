@@ -30,7 +30,7 @@ import {
   signUp,
   verifyEmail,
 } from '../services/accounts.js';
-import { downloadCertificate } from '../services/certificate.js';
+import { downloadCertificate, listEnvelopeEvents } from '../services/certificate.js';
 import { downloadDocument } from '../services/documents.js';
 import { buildResetEmail, buildVerifyEmail, sendEmail } from '../services/email.js';
 import { type ListOptions, listEnvelopes } from '../services/envelopes.js';
@@ -196,6 +196,12 @@ api.get('/envelopes/:id/certificate', async (c) => {
     c.req.param('id'),
   );
   return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
+});
+
+// Owner-scoped audit trail (every recorded event for the envelope).
+api.get('/envelopes/:id/events', async (c) => {
+  const data = await listEnvelopeEvents(c.get('db'), c.get('userId'), c.req.param('id'));
+  return c.json({ data });
 });
 
 // ─── Webhook endpoints + deliveries ───

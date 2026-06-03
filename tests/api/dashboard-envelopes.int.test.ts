@@ -110,4 +110,24 @@ describe.skipIf(!url)('dashboard envelopes (integration)', () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it('returns the audit trail by session and enforces ownership', async () => {
+    const ok = await app.request(`/dashboard/envelopes/${envA}/events`, {
+      headers: { cookie: A.cookie },
+    });
+    expect(ok.status).toBe(200);
+    const data = (await ok.json()).data as Array<{ type: string; timestampUtc: string }>;
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.find((e) => e.type === 'envelope_created')).toBeTruthy();
+    expect(data.every((e) => typeof e.timestampUtc === 'string')).toBe(true);
+
+    // Owner B cannot read owner A's trail.
+    const denied = await app.request(`/dashboard/envelopes/${envA}/events`, {
+      headers: { cookie: B.cookie },
+    });
+    expect(denied.status).toBe(404);
+
+    // No session at all.
+    expect((await app.request(`/dashboard/envelopes/${envA}/events`)).status).toBe(401);
+  });
 });

@@ -51,3 +51,5 @@ pnpm-debug.log*
 
 # Local screenshots / scratch
 .cache/
+
+/COMPETITIVE-ROADMAP.md

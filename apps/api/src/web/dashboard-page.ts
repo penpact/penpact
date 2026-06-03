@@ -220,16 +220,36 @@ async function loadEnvelopes(){
   const rows = list.map((e)=>{
     const done = e.status === 'completed';
     const dl = '<a href="/dashboard/envelopes/'+esc(e.id)+'/document" target="_blank" rel="noopener">'+(done?'Signed PDF':'Current PDF')+'</a>'+
-      (done ? ' · <a href="/dashboard/envelopes/'+esc(e.id)+'/certificate" target="_blank" rel="noopener">Certificate</a>' : '');
+      (done ? ' · <a href="/dashboard/envelopes/'+esc(e.id)+'/certificate" target="_blank" rel="noopener">Certificate</a>' : '')+
+      ' · <a href="#" data-events="'+esc(e.id)+'">History</a>';
     return '<tr>'+
       '<td>'+esc(e.documentName)+'</td>'+
       '<td><span class="pill">'+esc(e.status)+'</span></td>'+
       '<td class="muted">'+fmtDate(e.createdAt)+'</td>'+
       '<td class="muted">'+fmtDate(e.completedAt)+'</td>'+
       '<td>'+dl+'</td>'+
-    '</tr>';
+    '</tr>'+
+    '<tr class="hide" id="ev-'+esc(e.id)+'"><td colspan="5" class="muted" style="background:var(--field)">Loading history…</td></tr>';
   }).join('');
   card.innerHTML = '<table><thead><tr><th>Document</th><th>Status</th><th>Created</th><th>Completed</th><th>Download</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  card.querySelectorAll('[data-events]').forEach((a)=>{ a.onclick = (ev)=>{ ev.preventDefault(); toggleEvents(a.getAttribute('data-events')); }; });
+}
+
+async function toggleEvents(id){
+  const row = $('ev-'+id); if(!row) return;
+  if(!row.classList.contains('hide')){ row.classList.add('hide'); return; }
+  row.classList.remove('hide');
+  const res = await api('/envelopes/'+id+'/events');
+  const cell = row.querySelector('td');
+  if(!res.ok){ cell.textContent='Could not load history.'; return; }
+  const events = (await res.json()).data || [];
+  if(!events.length){ cell.textContent='No events recorded yet.'; return; }
+  const items = events.map((ev)=>{
+    const when = ev.timestampUtc ? new Date(ev.timestampUtc).toLocaleString() : '';
+    const ip = ev.context && ev.context.ipAddress ? ' · '+esc(ev.context.ipAddress) : '';
+    return '<div style="padding:4px 0;border-bottom:1px solid var(--line)"><span class="mono">'+esc(ev.type)+'</span> <span class="muted">'+esc(ev.actor||'')+ip+'</span> <span class="muted" style="float:right">'+esc(when)+'</span></div>';
+  }).join('');
+  cell.innerHTML = '<div style="font-size:13px">'+items+'</div>';
 }
 
 async function loadStats(){
