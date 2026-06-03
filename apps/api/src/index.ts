@@ -9,6 +9,7 @@ import { v1 } from './routes/v1.js';
 import { startReminderWorker } from './services/reminder-worker.js';
 import { startWebhookWorker } from './services/webhook-worker.js';
 import type { AppEnv } from './types.js';
+import { builderPageHtml } from './web/builder-page.js';
 import { dashboardPageHtml } from './web/dashboard-page.js';
 import { publicTemplatePageHtml } from './web/public-template-page.js';
 import { signPageHtml } from './web/sign-page.js';
@@ -35,6 +36,9 @@ app.get('/sign/:token', (c) => c.html(signPageHtml(c.req.param('token'))));
 
 // Public self-serve template landing page (the page calls /v1/public/* itself).
 app.get('/s/:slug', (c) => c.html(publicTemplatePageHtml()));
+
+// Visual field builder (cookie session; calls /dashboard/* itself).
+app.get('/builder', (c) => c.html(builderPageHtml()));
 
 app.route('/v1', v1);
 

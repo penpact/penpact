@@ -2,6 +2,7 @@ import { type Context, Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { getDb } from '../db.js';
 import { logger } from '../lib/logger.js';
+import { HttpProblem } from '../lib/problem.js';
 import { clientIp, userAgent } from '../lib/request.js';
 import { validateJson } from '../lib/validate.js';
 import { csrfProtect } from '../middleware/csrf.js';
@@ -12,6 +13,7 @@ import {
   createKeySchema,
   createWebhookEndpointSchema,
   credentialsSchema,
+  placeFieldsSchema,
   requestResetSchema,
   resetPasswordSchema,
   tokenSchema,
@@ -36,7 +38,8 @@ import {
 import { downloadCertificate, listEnvelopeEvents } from '../services/certificate.js';
 import { downloadDocument } from '../services/documents.js';
 import { buildResetEmail, buildVerifyEmail, sendEmail } from '../services/email.js';
-import { type ListOptions, listEnvelopes } from '../services/envelopes.js';
+import { getEnvelope, type ListOptions, listEnvelopes } from '../services/envelopes.js';
+import { placeFields } from '../services/fields.js';
 import {
   createEndpoint,
   deleteEndpoint,
@@ -214,6 +217,26 @@ api.get('/envelopes/:id/certificate', async (c) => {
 api.get('/envelopes/:id/events', async (c) => {
   const data = await listEnvelopeEvents(c.get('db'), c.get('userId'), c.req.param('id'));
   return c.json({ data });
+});
+
+// Owner-scoped single envelope (signers + fields) for the field builder.
+api.get('/envelopes/:id', async (c) => {
+  const env = await getEnvelope(c.get('db'), c.get('userId'), c.req.param('id'));
+  if (!env) {
+    throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Envelope not found.' });
+  }
+  return c.json(env);
+});
+
+// Owner-scoped field placement from the builder (cookie session).
+api.post('/envelopes/:id/fields', validateJson(placeFieldsSchema), async (c) => {
+  const created = await placeFields(
+    c.get('db'),
+    c.get('userId'),
+    c.req.param('id'),
+    c.req.valid('json'),
+  );
+  return c.json({ data: created }, 201);
 });
 
 // ─── Webhook endpoints + deliveries ───

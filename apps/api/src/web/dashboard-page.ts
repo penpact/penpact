@@ -255,6 +255,7 @@ async function loadEnvelopes(){
     const done = e.status === 'completed';
     const dl = '<a href="/dashboard/envelopes/'+esc(e.id)+'/document" target="_blank" rel="noopener">'+(done?'Signed PDF':'Current PDF')+'</a>'+
       (done ? ' · <a href="/dashboard/envelopes/'+esc(e.id)+'/certificate" target="_blank" rel="noopener">Certificate</a>' : '')+
+      (e.status==='draft' ? ' · <a href="/builder?envelope='+esc(e.id)+'" target="_blank" rel="noopener">Place fields</a>' : '')+
       ' · <a href="#" data-events="'+esc(e.id)+'">History</a>';
     return '<tr>'+
       '<td>'+esc(e.documentName)+(e.mode==='test'?' <span class="pill">test</span>':'')+'</td>'+
