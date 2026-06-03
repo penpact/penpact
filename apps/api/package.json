@@ -1,0 +1,22 @@
+{
+  "name": "@penpact/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@penpact/core": "workspace:*",
+    "@penpact/db": "workspace:*",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0"
+  }
+}

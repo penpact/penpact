@@ -1,0 +1,26 @@
+{
+  "name": "@penpact/sdk",
+  "version": "0.0.0",
+  "description": "Official TypeScript SDK for the Penpact e-signature API.",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch"
+  },
+  "dependencies": {
+    "@penpact/core": "workspace:*"
+  }
+}

@@ -1,0 +1,48 @@
+# ─── Internal / private docs (NEVER publish — strategy, naming, GTM, AI notes) ───
+# These stay in the working tree for local use but must not reach the public repo.
+/PLAN.md
+/NAMING.md
+/GITHUB-GROWTH.md
+/CLAUDE.md
+/.claude/
+/internal/
+
+# ─── Dependencies ───
+node_modules/
+.pnpm-store/
+
+# ─── Build output ───
+dist/
+build/
+out/
+.astro/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# ─── Env & secrets ───
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ─── Test / coverage ───
+coverage/
+.vitest/
+
+# ─── Editor / OS ───
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# ─── Local databases / uploads ───
+*.sqlite
+*.sqlite3
+/tmp/
+/uploads/
