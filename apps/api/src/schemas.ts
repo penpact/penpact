@@ -57,6 +57,45 @@ export const voidSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
+export const templateCreateSchema = z.object({
+  name: z.string().min(1).max(255),
+  documentName: z.string().min(1).max(255),
+  roles: z
+    .array(
+      z.object({ name: z.string().min(1).max(120), routingOrder: z.number().int().min(1).optional() }),
+    )
+    .min(1),
+});
+
+export const placeTemplateFieldsSchema = z.object({
+  fields: z
+    .array(
+      z.object({
+        type: z.enum(FIELD_TYPES),
+        roleId: z.string().uuid(),
+        page: z.number().int().min(1),
+        x: z.number().min(0),
+        y: z.number().min(0),
+        width: z.number().positive(),
+        height: z.number().positive(),
+        required: z.boolean().optional(),
+      }),
+    )
+    .min(1),
+});
+
+export const instantiateTemplateSchema = z.object({
+  signers: z
+    .array(z.object({ roleId: z.string().uuid(), name: z.string().min(1), email: z.string().email() }))
+    .min(1),
+  documentName: z.string().min(1).max(255).optional(),
+  expiresAt: z.string().datetime().optional(),
+});
+
+export type TemplateCreateInput = z.infer<typeof templateCreateSchema>;
+export type PlaceTemplateFieldsInput = z.infer<typeof placeTemplateFieldsSchema>;
+export type InstantiateInput = z.infer<typeof instantiateTemplateSchema>;
+
 export type CompleteInput = z.infer<typeof completeSchema>;
 export type DeclineInput = z.infer<typeof declineSchema>;
 

@@ -19,6 +19,11 @@ import { and, desc, eq } from 'drizzle-orm';
 import { PDFDocument } from 'pdf-lib';
 import { generateSigningToken, sha256HexBytes } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
+import type {
+  InstantiateInput,
+  PlaceTemplateFieldsInput,
+  TemplateCreateInput,
+} from '../schemas.js';
 import type { Storage } from '../storage/index.js';
 import { type EnvelopeResponse, getEnvelope } from './envelopes.js';
 import { recordEvent } from './events.js';
@@ -52,28 +57,6 @@ export interface TemplateResponse {
   createdAt: string;
 }
 
-export interface TemplateCreateInput {
-  name: string;
-  documentName: string;
-  roles: Array<{ name: string; routingOrder?: number }>;
-}
-export interface PlaceTemplateFieldsInput {
-  fields: Array<{
-    type: FieldType;
-    roleId: string;
-    page: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    required?: boolean;
-  }>;
-}
-export interface InstantiateInput {
-  signers: Array<{ roleId: string; name: string; email: string }>;
-  documentName?: string;
-  expiresAt?: string;
-}
 
 async function requireTemplate(db: Database, userId: string, id: string) {
   const rows = await db

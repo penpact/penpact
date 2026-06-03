@@ -100,6 +100,53 @@ export interface Document {
   isFinal: boolean;
 }
 
+export interface TemplateRole {
+  id: string;
+  name: string;
+  routingOrder: number;
+}
+export interface TemplateField {
+  id: string;
+  roleId: string;
+  type: FieldType;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  required: boolean;
+}
+export interface Template {
+  id: string;
+  name: string;
+  documentName: string;
+  storageKey: string | null;
+  pageCount: number | null;
+  roles: TemplateRole[];
+  fields: TemplateField[];
+  createdAt: string;
+}
+export interface TemplateCreateInput {
+  name: string;
+  documentName: string;
+  roles: Array<{ name: string; routingOrder?: number }>;
+}
+export interface TemplateFieldInput {
+  type: FieldType;
+  roleId: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  required?: boolean;
+}
+export interface InstantiateTemplateInput {
+  signers: Array<{ roleId: string; name: string; email: string }>;
+  documentName?: string;
+  expiresAt?: string;
+}
+
 /** Error carrying the RFC 7807 problem details from the API. */
 export class PenpactError extends Error {
   readonly status: number;
@@ -191,6 +238,42 @@ export class PenpactClient {
 
   async downloadCertificate(envelopeId: string): Promise<Uint8Array> {
     return this.#bytes(`/v1/envelopes/${encodeURIComponent(envelopeId)}/certificate`);
+  }
+
+  // ─── templates ───
+
+  async createTemplate(input: TemplateCreateInput): Promise<Template> {
+    return this.#json<Template>('POST', '/v1/templates', input);
+  }
+
+  async listTemplates(): Promise<Template[]> {
+    return (await this.#json<{ data: Template[] }>('GET', '/v1/templates')).data;
+  }
+
+  async getTemplate(id: string): Promise<Template> {
+    return this.#json<Template>('GET', `/v1/templates/${encodeURIComponent(id)}`);
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    await this.#request('DELETE', `/v1/templates/${encodeURIComponent(id)}`);
+  }
+
+  async uploadTemplateDocument(id: string, pdf: Uint8Array): Promise<Template> {
+    return this.#json<Template>('PUT', `/v1/templates/${encodeURIComponent(id)}/document`, pdf);
+  }
+
+  async placeTemplateFields(id: string, fields: TemplateFieldInput[]): Promise<TemplateField[]> {
+    const result = await this.#json<{ data: TemplateField[] }>(
+      'POST',
+      `/v1/templates/${encodeURIComponent(id)}/fields`,
+      { fields },
+    );
+    return result.data;
+  }
+
+  /** Instantiate the template into a new draft envelope by mapping roles to signers. */
+  async createEnvelopeFromTemplate(id: string, input: InstantiateTemplateInput): Promise<Envelope> {
+    return this.#json<Envelope>('POST', `/v1/templates/${encodeURIComponent(id)}/envelopes`, input);
   }
 
   // ─── internals ───

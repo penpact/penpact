@@ -13,9 +13,21 @@ import {
   consentSchema,
   declineSchema,
   envelopeCreateSchema,
+  instantiateTemplateSchema,
   placeFieldsSchema,
+  placeTemplateFieldsSchema,
+  templateCreateSchema,
   voidSchema,
 } from '../schemas.js';
+import {
+  createTemplate,
+  deleteTemplate,
+  getTemplate,
+  instantiateTemplate,
+  listTemplates,
+  placeTemplateFields,
+  uploadTemplateDocument,
+} from '../services/templates.js';
 import { autoDetectEnvelopeFields } from '../services/ai-fields.js';
 import { downloadCertificate } from '../services/certificate.js';
 import { downloadDocument, uploadDocument } from '../services/documents.js';
@@ -212,9 +224,63 @@ signRoute.post('/:token/decline', validateJson(declineSchema), async (c) => {
   );
 });
 
+// ─── Template routes (API-key auth) ───
+const templatesRoute = new Hono<AppEnv>();
+templatesRoute.use('*', apiKeyAuth);
+
+templatesRoute.post('/', validateJson(templateCreateSchema), async (c) => {
+  return c.json(await createTemplate(c.get('db'), c.get('userId'), c.req.valid('json')), 201);
+});
+
+templatesRoute.get('/', async (c) => {
+  return c.json({ data: await listTemplates(c.get('db'), c.get('userId')) });
+});
+
+templatesRoute.get('/:id', async (c) => {
+  const tpl = await getTemplate(c.get('db'), c.get('userId'), c.req.param('id'));
+  if (!tpl) {
+    throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Template not found.' });
+  }
+  return c.json(tpl);
+});
+
+templatesRoute.delete('/:id', async (c) => {
+  await deleteTemplate(c.get('db'), c.get('userId'), c.req.param('id'));
+  return c.body(null, 204);
+});
+
+templatesRoute.put('/:id/document', async (c) => {
+  const body = new Uint8Array(await c.req.arrayBuffer());
+  return c.json(
+    await uploadTemplateDocument(c.get('db'), getStorage(), c.get('userId'), c.req.param('id'), body),
+  );
+});
+
+templatesRoute.post('/:id/fields', validateJson(placeTemplateFieldsSchema), async (c) => {
+  const created = await placeTemplateFields(
+    c.get('db'),
+    c.get('userId'),
+    c.req.param('id'),
+    c.req.valid('json'),
+  );
+  return c.json({ data: created }, 201);
+});
+
+templatesRoute.post('/:id/envelopes', validateJson(instantiateTemplateSchema), async (c) => {
+  const envelope = await instantiateTemplate(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+    c.req.valid('json'),
+  );
+  return c.json(envelope, 201);
+});
+
 export const v1 = new Hono<AppEnv>();
 v1.get('/', (c) => c.json({ version: 'v1', status: 'preview' }));
 v1.route('/envelopes', envelopesRoute);
+v1.route('/templates', templatesRoute);
 v1.route('/sign', signRoute);
 
 export type V1 = typeof v1;
