@@ -424,6 +424,60 @@ export async function getPublicTemplate(
   return rows[0] ?? null;
 }
 
+export interface BulkSendResult {
+  sent: number;
+  failed: number;
+  envelopes: Array<{ email: string; envelopeId: string }>;
+  errors: Array<{ email: string; error: string }>;
+}
+
+/**
+ * Send a single-role template to many recipients at once: one independent
+ * envelope per recipient, each instantiated from the template and sent. Errors
+ * for individual recipients are collected, not fatal to the batch.
+ */
+export async function bulkSendTemplate(
+  db: Database,
+  storage: Storage,
+  userId: string,
+  id: string,
+  recipients: Array<{ name: string; email: string }>,
+  ctx: RequestContext,
+): Promise<BulkSendResult> {
+  await requireTemplate(db, userId, id);
+  const roleRows = await db
+    .select({ id: templateRoles.id })
+    .from(templateRoles)
+    .where(eq(templateRoles.templateId, id));
+  if (roleRows.length !== 1) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'Bulk send supports single-role templates.',
+    });
+  }
+  const roleId = (roleRows[0] as { id: string }).id;
+
+  const result: BulkSendResult = { sent: 0, failed: 0, envelopes: [], errors: [] };
+  for (const r of recipients) {
+    try {
+      const env = await instantiateTemplate(db, storage, userId, id, {
+        signers: [{ roleId, name: r.name, email: r.email }],
+      });
+      await sendEnvelope(db, userId, env.id, ctx);
+      result.sent++;
+      result.envelopes.push({ email: r.email, envelopeId: env.id });
+    } catch (err) {
+      result.failed++;
+      result.errors.push({
+        email: r.email,
+        error: err instanceof HttpProblem ? (err.detail ?? err.title) : 'Failed to send',
+      });
+    }
+  }
+  return result;
+}
+
 /**
  * Spin up a fresh envelope from a public template for a self-identified signer,
  * send it, and return their signing token. No API key required — the template's

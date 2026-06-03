@@ -68,6 +68,10 @@
     "./templates": {
       "import": "./dist/services/templates.js",
       "default": "./dist/services/templates.js"
+    },
+    "./csv": {
+      "import": "./dist/lib/csv.js",
+      "default": "./dist/lib/csv.js"
     }
   },
   "scripts": {

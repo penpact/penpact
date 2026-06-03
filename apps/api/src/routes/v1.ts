@@ -3,6 +3,7 @@ import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
 import { getDb } from '../db.js';
+import { parseRecipientsCsv } from '../lib/csv.js';
 import { HttpProblem } from '../lib/problem.js';
 import { clientIp, userAgent } from '../lib/request.js';
 import { validateJson, validateQuery } from '../lib/validate.js';
@@ -11,6 +12,7 @@ import { idempotency } from '../middleware/idempotency.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import {
   authenticateSchema,
+  bulkSendSchema,
   completeSchema,
   consentSchema,
   declineSchema,
@@ -45,6 +47,7 @@ import {
   getSigningSession,
 } from '../services/signing.js';
 import {
+  bulkSendTemplate,
   createTemplate,
   deleteTemplate,
   getPublicTemplate,
@@ -317,6 +320,26 @@ templatesRoute.post('/:id/publish', async (c) => {
 templatesRoute.delete('/:id/publish', async (c) => {
   await unpublishTemplate(c.get('db'), c.get('userId'), c.req.param('id'));
   return c.body(null, 204);
+});
+
+// Bulk send: JSON { recipients: [...] } or a raw text/csv body (name,email header).
+templatesRoute.post('/:id/bulk-send', async (c) => {
+  const contentType = c.req.header('content-type') ?? '';
+  let recipients: Array<{ name: string; email: string }>;
+  if (contentType.includes('text/csv') || contentType.includes('text/plain')) {
+    recipients = parseRecipientsCsv(await c.req.text());
+  } else {
+    recipients = bulkSendSchema.parse(await c.req.json()).recipients;
+  }
+  const result = await bulkSendTemplate(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+    recipients,
+    reqCtx(c),
+  );
+  return c.json(result, 202);
 });
 
 // ─── Public self-serve template signing (no API key; rate-limited) ───

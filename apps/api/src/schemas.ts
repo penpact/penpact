@@ -19,6 +19,13 @@ export const publicStartSchema = z.object({
   email: z.string().email(),
 });
 
+export const bulkSendSchema = z.object({
+  recipients: z
+    .array(z.object({ name: z.string().min(1).max(120), email: z.string().email() }))
+    .min(1)
+    .max(500),
+});
+
 export const brandingSchema = z.object({
   brandName: z.string().min(1).max(80).optional(),
   brandColor: z

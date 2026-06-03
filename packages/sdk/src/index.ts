@@ -154,6 +154,12 @@ export interface InstantiateTemplateInput {
   documentName?: string;
   expiresAt?: string;
 }
+export interface BulkSendResult {
+  sent: number;
+  failed: number;
+  envelopes: Array<{ email: string; envelopeId: string }>;
+  errors: Array<{ email: string; error: string }>;
+}
 
 /** Error carrying the RFC 7807 problem details from the API. */
 export class PenpactError extends Error {
@@ -291,6 +297,16 @@ export class PenpactClient {
 
   async unpublishTemplate(id: string): Promise<void> {
     await this.#request('DELETE', `/v1/templates/${encodeURIComponent(id)}/publish`);
+  }
+
+  /** Send a single-role template to many recipients — one envelope each. */
+  async bulkSendTemplate(
+    id: string,
+    recipients: Array<{ name: string; email: string }>,
+  ): Promise<BulkSendResult> {
+    return this.#json<BulkSendResult>('POST', `/v1/templates/${encodeURIComponent(id)}/bulk-send`, {
+      recipients,
+    });
   }
 
   // ─── internals ───
