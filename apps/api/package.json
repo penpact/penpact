@@ -72,6 +72,10 @@
     "./csv": {
       "import": "./dist/lib/csv.js",
       "default": "./dist/lib/csv.js"
+    },
+    "./reminders": {
+      "import": "./dist/services/reminders.js",
+      "default": "./dist/services/reminders.js"
     }
   },
   "scripts": {

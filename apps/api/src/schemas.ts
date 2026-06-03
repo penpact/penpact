@@ -39,6 +39,8 @@ export const envelopeCreateSchema = z.object({
   documentName: z.string().min(1).max(255),
   signers: z.array(signerCreateSchema).min(1),
   expiresAt: z.string().datetime().optional(),
+  /** Re-nudge unsigned signers every N hours (1..8760). Omit to disable. */
+  reminderEveryHours: z.number().int().min(1).max(8760).optional(),
 });
 
 export type EnvelopeCreateInput = z.infer<typeof envelopeCreateSchema>;

@@ -137,6 +137,7 @@ export async function createEnvelope(
         userId,
         documentName: input.documentName,
         mode,
+        reminderIntervalHours: input.reminderEveryHours ?? null,
         senderName: user.name ?? user.email,
         senderEmail: user.email,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,

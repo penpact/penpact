@@ -6,6 +6,7 @@ import { problemErrorHandler } from './lib/problem.js';
 import { requestId } from './middleware/request-id.js';
 import { dashboard } from './routes/dashboard.js';
 import { v1 } from './routes/v1.js';
+import { startReminderWorker } from './services/reminder-worker.js';
 import { startWebhookWorker } from './services/webhook-worker.js';
 import type { AppEnv } from './types.js';
 import { dashboardPageHtml } from './web/dashboard-page.js';
@@ -51,4 +52,6 @@ if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
   });
   // Drain the durable webhook queue on an interval.
   startWebhookWorker();
+  // Re-nudge unsigned signers for envelopes that opted into reminders.
+  startReminderWorker();
 }

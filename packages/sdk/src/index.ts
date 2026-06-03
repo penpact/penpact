@@ -71,6 +71,8 @@ export interface EnvelopeCreateInput {
   documentName: string;
   signers: SignerInput[];
   expiresAt?: string;
+  /** Re-nudge unsigned signers every N hours (1..8760). Omit to disable. */
+  reminderEveryHours?: number;
 }
 
 export interface FieldInput {
