@@ -1,0 +1,616 @@
+openapi: "3.1.0"
+info:
+  title: Penpact API
+  version: "1.0.0-preview"
+  summary: Open-source, embeddable e-signature API.
+  description: |
+    The Penpact REST API. Two audiences, two credentials:
+
+    - **Integrator endpoints** (`/v1/envelopes…`) are authenticated with your secret
+      **API key** as a Bearer token: `Authorization: Bearer pk_live_…`.
+    - **Signer endpoints** (`/v1/sign/{signingToken}…`) are reached by the recipient and
+      authorized by the unguessable `signingToken` in the URL — no API key.
+
+    JSON field names are **camelCase**. Timestamps are RFC 3339 / ISO 8601 UTC.
+    Errors follow **RFC 7807** (`application/problem+json`).
+  license:
+    name: AGPL-3.0-only
+    url: https://github.com/penpact/penpact/blob/main/LICENSE
+  contact:
+    name: Penpact
+    url: https://penpact.dev
+
+servers:
+  - url: https://api.penpact.dev
+    description: Managed cloud
+  - url: http://localhost:3000
+    description: Local self-host
+
+security:
+  - ApiKeyAuth: []
+
+tags:
+  - name: Envelopes
+    description: Create, send, and manage signing requests.
+  - name: Fields
+    description: Place (or AI-detect) fields on an envelope's document.
+  - name: Signing
+    description: Recipient-facing signing session (authorized by signingToken).
+
+paths:
+  /v1/envelopes:
+    post:
+      summary: Create an envelope
+      operationId: createEnvelope
+      tags: [Envelopes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EnvelopeCreate" }
+      responses:
+        "201":
+          description: Draft envelope created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    get:
+      summary: List envelopes
+      operationId: listEnvelopes
+      tags: [Envelopes]
+      parameters:
+        - name: status
+          in: query
+          description: Filter by envelope status.
+          schema: { $ref: "#/components/schemas/EnvelopeStatus" }
+        - name: cursor
+          in: query
+          schema: { type: string }
+          description: Opaque cursor from a previous page.
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Paginated list of envelopes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Envelope" }
+                  pagination: { $ref: "#/components/schemas/CursorPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /v1/envelopes/{envelopeId}:
+    parameters:
+      - $ref: "#/components/parameters/EnvelopeId"
+    get:
+      summary: Retrieve an envelope
+      operationId: getEnvelope
+      tags: [Envelopes]
+      responses:
+        "200":
+          description: The envelope.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/envelopes/{envelopeId}/document:
+    parameters:
+      - $ref: "#/components/parameters/EnvelopeId"
+    put:
+      summary: Upload the document to sign
+      operationId: uploadEnvelopeDocument
+      tags: [Envelopes]
+      description: Upload the source PDF for a draft envelope. Replaces any prior upload.
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Stored document metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Document" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+    get:
+      summary: Download the document
+      operationId: downloadEnvelopeDocument
+      tags: [Envelopes]
+      description: Returns the sealed final PDF once completed, otherwise the current source PDF.
+      responses:
+        "200":
+          description: PDF bytes.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/envelopes/{envelopeId}/fields:
+    parameters:
+      - $ref: "#/components/parameters/EnvelopeId"
+    post:
+      summary: Place fields
+      operationId: placeFields
+      tags: [Fields]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fields]
+              properties:
+                fields:
+                  type: array
+                  minItems: 1
+                  items: { $ref: "#/components/schemas/FieldCreate" }
+      responses:
+        "201":
+          description: Fields created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Field" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/envelopes/{envelopeId}/fields/auto-detect:
+    parameters:
+      - $ref: "#/components/parameters/EnvelopeId"
+    post:
+      summary: Auto-detect fields (AI)
+      operationId: autoDetectFields
+      tags: [Fields]
+      description: Run AI field detection over the uploaded PDF and return proposed fields.
+      responses:
+        "200":
+          description: Proposed fields (not yet persisted unless `persist` is set).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Field" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/envelopes/{envelopeId}/send:
+    parameters:
+      - $ref: "#/components/parameters/EnvelopeId"
+    post:
+      summary: Send the envelope
+      operationId: sendEnvelope
+      tags: [Envelopes]
+      description: Locks the document, emails signing links, and transitions the envelope to `sent`.
+      responses:
+        "200":
+          description: Envelope sent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/envelopes/{envelopeId}/void:
+    parameters:
+      - $ref: "#/components/parameters/EnvelopeId"
+    post:
+      summary: Void the envelope
+      operationId: voidEnvelope
+      tags: [Envelopes]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: Envelope voided.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/envelopes/{envelopeId}/certificate:
+    parameters:
+      - $ref: "#/components/parameters/EnvelopeId"
+    get:
+      summary: Download the Certificate of Completion
+      operationId: downloadCertificate
+      tags: [Envelopes]
+      responses:
+        "200":
+          description: Certificate PDF.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ─── Signer-facing (authorized by signingToken in the path) ───
+  /v1/sign/{signingToken}:
+    parameters:
+      - $ref: "#/components/parameters/SigningToken"
+    get:
+      summary: Get the signing session
+      operationId: getSigningSession
+      tags: [Signing]
+      security: []
+      responses:
+        "200":
+          description: Everything the signer UI needs to render.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SigningSession" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { $ref: "#/components/responses/Gone" }
+
+  /v1/sign/{signingToken}/consent:
+    parameters:
+      - $ref: "#/components/parameters/SigningToken"
+    post:
+      summary: Accept the electronic-records consent disclosure (ESIGN §7001(c))
+      operationId: acceptConsent
+      tags: [Signing]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [disclosureHash, agree]
+              properties:
+                disclosureHash: { type: string }
+                agree: { type: boolean, const: true }
+      responses:
+        "204": { description: Consent recorded. }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/sign/{signingToken}/complete:
+    parameters:
+      - $ref: "#/components/parameters/SigningToken"
+    post:
+      summary: Submit completed fields and sign
+      operationId: completeSigning
+      tags: [Signing]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signatureType, fields]
+              properties:
+                signatureType: { $ref: "#/components/schemas/SignatureType" }
+                fields:
+                  type: array
+                  items:
+                    type: object
+                    required: [fieldId, value]
+                    properties:
+                      fieldId: { type: string, format: uuid }
+                      value: { type: string }
+      responses:
+        "200":
+          description: Signature accepted; signer marked signed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Signer" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/sign/{signingToken}/decline:
+    parameters:
+      - $ref: "#/components/parameters/SigningToken"
+    post:
+      summary: Decline to sign
+      operationId: declineSigning
+      tags: [Signing]
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: Decline recorded.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Signer" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+webhooks:
+  envelopeEvent:
+    post:
+      summary: Envelope lifecycle event
+      operationId: onEnvelopeEvent
+      description: |
+        Penpact POSTs these to your configured endpoint. Verify the
+        `Penpact-Signature` header (HMAC-SHA256 of the raw body) before trusting.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebhookEvent" }
+      responses:
+        "200": { description: Acknowledged. }
+
+components:
+  parameters:
+    EnvelopeId:
+      name: envelopeId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SigningToken:
+      name: signingToken
+      in: path
+      required: true
+      schema: { type: string }
+
+  schemas:
+    EnvelopeStatus:
+      type: string
+      enum: [draft, sent, viewed, partially_signed, completed, declined, voided, expired]
+
+    SignerStatus:
+      type: string
+      enum: [pending, sent, viewed, signed, declined]
+
+    AuthMethod:
+      type: string
+      enum: [email_link, access_code, sms_otp, id_verification]
+
+    SignatureType:
+      type: string
+      enum: [drawn, typed, adopted, uploaded]
+
+    FieldType:
+      type: string
+      enum: [signature, initials, date, name, email, text, checkbox]
+
+    SignerCreate:
+      type: object
+      required: [name, email]
+      properties:
+        name: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        routingOrder: { type: integer, minimum: 1, default: 1 }
+        authMethod: { $ref: "#/components/schemas/AuthMethod" }
+
+    Signer:
+      type: object
+      required: [id, name, email, status, routingOrder]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string }
+        email: { type: string, format: email }
+        status: { $ref: "#/components/schemas/SignerStatus" }
+        routingOrder: { type: integer }
+        signedAt: { type: [string, "null"], format: date-time, readOnly: true }
+
+    FieldCreate:
+      type: object
+      required: [type, signerId, page, x, y, width, height]
+      properties:
+        type: { $ref: "#/components/schemas/FieldType" }
+        signerId: { type: string, format: uuid }
+        page: { type: integer, minimum: 1 }
+        x: { type: number, minimum: 0 }
+        y: { type: number, minimum: 0 }
+        width: { type: number, exclusiveMinimum: 0 }
+        height: { type: number, exclusiveMinimum: 0 }
+        required: { type: boolean, default: true }
+
+    Field:
+      allOf:
+        - $ref: "#/components/schemas/FieldCreate"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            aiDetected: { type: boolean, readOnly: true }
+            value: { type: [string, "null"] }
+
+    Document:
+      type: object
+      required: [id, contentHash, mimeType, isFinal]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        contentHash: { type: string, description: "SHA-256 hex of the bytes." }
+        mimeType: { type: string }
+        byteSize: { type: [integer, "null"] }
+        isFinal: { type: boolean }
+        pageCount: { type: [integer, "null"] }
+
+    EnvelopeCreate:
+      type: object
+      required: [documentName, signers]
+      properties:
+        documentName: { type: string, minLength: 1, maxLength: 255 }
+        signers:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/SignerCreate" }
+        expiresAt: { type: [string, "null"], format: date-time }
+
+    Envelope:
+      type: object
+      required: [id, documentName, status, senderEmail, createdAt, signers]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        documentName: { type: string }
+        status: { $ref: "#/components/schemas/EnvelopeStatus" }
+        senderName: { type: string }
+        senderEmail: { type: string, format: email }
+        documentHashOriginal: { type: [string, "null"], readOnly: true }
+        documentHashFinal: { type: [string, "null"], readOnly: true }
+        hashAlgorithm: { type: string, default: "SHA-256", readOnly: true }
+        signers:
+          type: array
+          items: { $ref: "#/components/schemas/Signer" }
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/Field" }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        sentAt: { type: [string, "null"], format: date-time, readOnly: true }
+        completedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        expiresAt: { type: [string, "null"], format: date-time }
+
+    SigningSession:
+      type: object
+      required: [envelopeId, signer, documentUrl, fields, consentRequired]
+      properties:
+        envelopeId: { type: string, format: uuid }
+        documentName: { type: string }
+        signer: { $ref: "#/components/schemas/Signer" }
+        documentUrl: { type: string, format: uri, description: "Short-lived URL to the PDF." }
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/Field" }
+        consentRequired: { type: boolean }
+        consentDisclosure:
+          type: [object, "null"]
+          required: [version, text, hash]
+          properties:
+            version: { type: string }
+            text: { type: string }
+            hash: { type: string }
+
+    CursorPage:
+      type: object
+      required: [nextCursor, hasMore]
+      properties:
+        nextCursor: { type: [string, "null"] }
+        hasMore: { type: boolean }
+
+    WebhookEvent:
+      type: object
+      required: [id, type, createdAt, data]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum:
+            [
+              envelope.sent,
+              envelope.viewed,
+              envelope.partially_signed,
+              envelope.completed,
+              envelope.declined,
+              envelope.voided,
+            ]
+        createdAt: { type: string, format: date-time }
+        data:
+          type: object
+          required: [envelope]
+          properties:
+            envelope: { $ref: "#/components/schemas/Envelope" }
+
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri, example: "https://penpact.dev/errors/validation-error" }
+        title: { type: string, example: "Validation Error" }
+        status: { type: integer, example: 422 }
+        detail: { type: string, example: "`signers` must contain at least one signer." }
+        instance: { type: string, example: "/v1/envelopes" }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Unauthorized:
+      description: Missing or invalid API key.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotFound:
+      description: Resource not found.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Conflict:
+      description: The envelope is not in a state that allows this operation.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Gone:
+      description: The signing link has expired, been completed, or been voided.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnprocessableEntity:
+      description: Validation failed.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    TooManyRequests:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API key
+      description: "Secret API key as a Bearer token: `Authorization: Bearer pk_live_…`."
