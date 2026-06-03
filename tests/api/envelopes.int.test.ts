@@ -226,11 +226,27 @@ describe.skipIf(!url)('envelopes (integration)', () => {
     expect(complete.status).toBe(200);
     expect((await complete.json()).status).toBe('signed');
 
-    const env = await app.request(`/v1/envelopes/${id}`, { headers: headers() });
-    expect((await env.json()).status).toBe('completed');
+    const envRes = await app.request(`/v1/envelopes/${id}`, { headers: headers() });
+    const envBody = await envRes.json();
+    expect(envBody.status).toBe('completed');
+    expect(envBody.documentHashFinal).toMatch(/^[0-9a-f]{64}$/);
+
+    // The sealed document and Certificate of Completion are available.
+    const finalDoc = await app.request(`/v1/envelopes/${id}/document`, { headers: headers() });
+    expect(finalDoc.status).toBe(200);
+    const certRes = await app.request(`/v1/envelopes/${id}/certificate`, { headers: headers() });
+    expect(certRes.status).toBe(200);
+    expect(certRes.headers.get('content-type')).toContain('application/pdf');
+    expect(new Uint8Array(await certRes.arrayBuffer()).byteLength).toBeGreaterThan(0);
 
     // The session is gone once completed.
     expect((await app.request(`/v1/sign/${token}`)).status).toBe(410);
+  });
+
+  it('404s the certificate before completion', async () => {
+    const { id } = await createDraft();
+    const res = await app.request(`/v1/envelopes/${id}/certificate`, { headers: headers() });
+    expect(res.status).toBe(404);
   });
 
   it('records a decline and closes the envelope', async () => {

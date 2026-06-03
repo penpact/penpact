@@ -20,6 +20,10 @@
     "./storage": {
       "import": "./dist/storage/index.js",
       "default": "./dist/storage/index.js"
+    },
+    "./webhooks": {
+      "import": "./dist/services/webhooks.js",
+      "default": "./dist/services/webhooks.js"
     }
   },
   "scripts": {

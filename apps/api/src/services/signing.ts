@@ -12,6 +12,8 @@ import {
   toSignerResponse,
 } from './envelopes.js';
 import { recordEvent } from './events.js';
+import { finalizeEnvelope } from './sealing.js';
+import { buildCompletedEvent, dispatchWebhook } from './webhooks.js';
 
 type SignerRow = typeof signers.$inferSelect;
 type EnvelopeRow = typeof envelopes.$inferSelect;
@@ -187,6 +189,7 @@ export async function acceptConsent(
 
 export async function completeSigning(
   db: Database,
+  storage: Storage,
   token: string,
   input: CompleteInput,
   ctx: RequestContext,
@@ -236,6 +239,7 @@ export async function completeSigning(
   }
 
   const now = new Date();
+  let envelopeCompleted = false;
   await db.transaction(async (tx) => {
     for (const field of myFields) {
       const value = provided.get(field.id);
@@ -294,6 +298,7 @@ export async function completeSigning(
         .set({ status: 'completed', completedAt: now })
         .where(eq(envelopes.id, envelope.id));
       await recordEvent(tx, { envelopeId: envelope.id, type: 'completed', actor: 'system' });
+      envelopeCompleted = true;
     } else {
       await tx
         .update(envelopes)
@@ -301,6 +306,11 @@ export async function completeSigning(
         .where(eq(envelopes.id, envelope.id));
     }
   });
+
+  if (envelopeCompleted) {
+    const { finalHash } = await finalizeEnvelope(db, storage, envelope.id);
+    await dispatchWebhook(buildCompletedEvent(envelope.id, finalHash));
+  }
 
   return reloadSigner(db, signer.id);
 }

@@ -15,6 +15,7 @@ import {
   placeFieldsSchema,
 } from '../schemas.js';
 import { requireEnvelope } from '../services/access.js';
+import { downloadCertificate } from '../services/certificate.js';
 import { downloadDocument, uploadDocument } from '../services/documents.js';
 import {
   createEnvelope,
@@ -122,6 +123,16 @@ envelopesRoute.post('/:id/send', async (c) => {
   return c.json(envelope);
 });
 
+envelopesRoute.get('/:id/certificate', async (c) => {
+  const bytes = await downloadCertificate(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+  );
+  return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
+});
+
 // ─── Signer routes (authorized by the signingToken in the path, not an API key) ───
 const signRoute = new Hono<AppEnv>();
 signRoute.use('*', rateLimit({ windowMs: 60_000, max: 120 }));
@@ -151,7 +162,13 @@ signRoute.post('/:token/consent', validateJson(consentSchema), async (c) => {
 
 signRoute.post('/:token/complete', validateJson(completeSchema), async (c) => {
   return c.json(
-    await completeSigning(c.get('db'), c.req.param('token'), c.req.valid('json'), reqCtx(c)),
+    await completeSigning(
+      c.get('db'),
+      getStorage(),
+      c.req.param('token'),
+      c.req.valid('json'),
+      reqCtx(c),
+    ),
   );
 });
 
