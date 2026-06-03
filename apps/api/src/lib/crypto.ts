@@ -45,3 +45,8 @@ export function generateSigningToken(): string {
 export function generateSessionToken(): string {
   return base62(48);
 }
+
+/** Per-endpoint webhook signing secret (shared HMAC key, shown once). */
+export function generateWebhookSecret(): string {
+  return `whsec_${base62(40)}`;
+}
