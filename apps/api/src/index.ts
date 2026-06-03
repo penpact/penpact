@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import { problemErrorHandler } from './lib/problem.js';
 import { v1 } from './routes/v1.js';
 import type { AppEnv } from './types.js';
+import { signPageHtml } from './web/sign-page.js';
 
 export const app = new Hono<AppEnv>();
 
@@ -19,6 +20,10 @@ app.get('/', (c) =>
 );
 
 app.get('/health', (c) => c.json({ status: 'ok' }));
+
+// Human-facing hosted signing page. The token in the path is the signer's
+// credential; the page calls the /v1/sign/:token API from the browser.
+app.get('/sign/:token', (c) => c.html(signPageHtml(c.req.param('token'))));
 
 app.route('/v1', v1);
 
