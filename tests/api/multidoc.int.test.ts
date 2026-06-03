@@ -30,18 +30,26 @@ describe.skipIf(!url)('multi-document envelopes (integration)', () => {
     )[0];
     const gen = generateApiKey('test');
     apiKey = gen.key;
-    await db.insert(apiKeys).values({ userId: user?.id as string, name: 'md', prefix: gen.prefix, keyHash: gen.hash });
+    await db
+      .insert(apiKeys)
+      .values({ userId: user?.id as string, name: 'md', prefix: gen.prefix, keyHash: gen.hash });
   });
 
   const auth = () => ({ authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' });
-  const pdfHeaders = () => ({ authorization: `Bearer ${apiKey}`, 'content-type': 'application/pdf' });
+  const pdfHeaders = () => ({
+    authorization: `Bearer ${apiKey}`,
+    'content-type': 'application/pdf',
+  });
 
   it('holds two documents, fields per document, and seals a merged final', async () => {
     const env = await (
       await app.request('/v1/envelopes', {
         method: 'POST',
         headers: auth(),
-        body: JSON.stringify({ documentName: 'Bundle', signers: [{ name: 'Sam', email: 'sam@x.test' }] }),
+        body: JSON.stringify({
+          documentName: 'Bundle',
+          signers: [{ name: 'Sam', email: 'sam@x.test' }],
+        }),
       })
     ).json();
     const signerId = env.signers[0].id;
@@ -80,15 +88,36 @@ describe.skipIf(!url)('multi-document envelopes (integration)', () => {
       headers: auth(),
       body: JSON.stringify({
         fields: [
-          { type: 'signature', signerId, documentId: docA.id, page: 2, x: 72, y: 100, width: 150, height: 40 },
-          { type: 'text', signerId, documentId: docB.id, page: 1, x: 72, y: 100, width: 150, height: 20 },
+          {
+            type: 'signature',
+            signerId,
+            documentId: docA.id,
+            page: 2,
+            x: 72,
+            y: 100,
+            width: 150,
+            height: 40,
+          },
+          {
+            type: 'text',
+            signerId,
+            documentId: docB.id,
+            page: 1,
+            x: 72,
+            y: 100,
+            width: 150,
+            height: 20,
+          },
         ],
       }),
     });
     expect(placed.status).toBe(201);
 
     // send + sign
-    expect((await app.request(`/v1/envelopes/${env.id}/send`, { method: 'POST', headers: auth() })).status).toBe(200);
+    expect(
+      (await app.request(`/v1/envelopes/${env.id}/send`, { method: 'POST', headers: auth() }))
+        .status,
+    ).toBe(200);
     const token = (
       await db.select({ t: signers.signingToken }).from(signers).where(eq(signers.id, signerId))
     )[0]?.t as string;
@@ -118,7 +147,11 @@ describe.skipIf(!url)('multi-document envelopes (integration)', () => {
 
     // the sealed final merges both documents: 2 + 1 = 3 pages
     const finalBytes = new Uint8Array(
-      await (await app.request(`/v1/envelopes/${env.id}/document`, { headers: { authorization: `Bearer ${apiKey}` } })).arrayBuffer(),
+      await (
+        await app.request(`/v1/envelopes/${env.id}/document`, {
+          headers: { authorization: `Bearer ${apiKey}` },
+        })
+      ).arrayBuffer(),
     );
     const finalPdf = await PDFDocument.load(finalBytes);
     expect(finalPdf.getPageCount()).toBe(3);

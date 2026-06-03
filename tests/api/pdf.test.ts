@@ -45,7 +45,15 @@ describe('pdf sealer', () => {
       [
         // a typed field on doc A page 2, a drawn field on doc B page 1
         { documentId: 'a', page: 2, x: 72, y: 100, width: 120, height: 20, value: 'on A p2' },
-        { documentId: 'b', page: 1, x: 72, y: 100, width: 160, height: 50, value: `data:image/png;base64,${PNG_1x1}` },
+        {
+          documentId: 'b',
+          page: 1,
+          x: 72,
+          y: 100,
+          width: 160,
+          height: 50,
+          value: `data:image/png;base64,${PNG_1x1}`,
+        },
       ],
     );
     const reloaded = await PDFDocument.load(out);

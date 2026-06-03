@@ -164,14 +164,22 @@ export function Sign(props: SignProps): JSX.Element {
     return <div className={cls}>You're all set. This document has been signed.</div>;
   if (phase === 'declined') return <div className={cls}>You declined to sign.</div>;
 
+  const docList =
+    session?.documents && session.documents.length > 0
+      ? session.documents
+      : [{ id: 'doc', documentUrl: documentUrl(deps), pageCount: null }];
+
   return (
     <div className={cls}>
-      <iframe
-        className="penpact-sign__doc"
-        title="Document preview"
-        src={`${documentUrl(deps)}#toolbar=1&view=FitH`}
-        style={{ width: '100%', height: 420, border: '1px solid #ccc' }}
-      />
+      {docList.map((d, i) => (
+        <iframe
+          key={d.id}
+          className="penpact-sign__doc"
+          title={`Document ${i + 1}`}
+          src={`${d.documentUrl}#toolbar=1&view=FitH`}
+          style={{ width: '100%', height: 420, border: '1px solid #ccc', marginBottom: 8 }}
+        />
+      ))}
 
       {phase === 'consent' && session?.consentDisclosure ? (
         <div className="penpact-sign__consent">
@@ -195,7 +203,10 @@ export function Sign(props: SignProps): JSX.Element {
               onChange={(e) => setFullName(e.target.value)}
             />
           </label>
-          <div className="penpact-sign__methods" style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
+          <div
+            className="penpact-sign__methods"
+            style={{ display: 'flex', gap: 8, margin: '8px 0' }}
+          >
             <button
               type="button"
               aria-pressed={mode === 'type'}
@@ -217,7 +228,13 @@ export function Sign(props: SignProps): JSX.Element {
           {mode === 'type' ? (
             <div
               className="penpact-sign__preview"
-              style={{ fontFamily: 'cursive', fontSize: 28, background: '#fff', color: '#111', padding: '6px 10px' }}
+              style={{
+                fontFamily: 'cursive',
+                fontSize: 28,
+                background: '#fff',
+                color: '#111',
+                padding: '6px 10px',
+              }}
             >
               {fullName}
             </div>
@@ -227,7 +244,13 @@ export function Sign(props: SignProps): JSX.Element {
                 ref={canvasRef}
                 width={360}
                 height={120}
-                style={{ background: '#fff', border: '1px solid #ccc', touchAction: 'none', display: 'block', maxWidth: '100%' }}
+                style={{
+                  background: '#fff',
+                  border: '1px solid #ccc',
+                  touchAction: 'none',
+                  display: 'block',
+                  maxWidth: '100%',
+                }}
                 onPointerDown={(e) => {
                   const c = canvasRef.current;
                   const ctx = c?.getContext('2d');

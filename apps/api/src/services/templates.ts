@@ -57,7 +57,6 @@ export interface TemplateResponse {
   createdAt: string;
 }
 
-
 async function requireTemplate(db: Database, userId: string, id: string) {
   const rows = await db
     .select()

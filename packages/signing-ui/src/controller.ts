@@ -25,11 +25,18 @@ export interface ConsentDisclosure {
   hash: string;
 }
 
+export interface SigningDocument {
+  id: string;
+  documentUrl: string;
+  pageCount: number | null;
+}
+
 export interface SigningSessionData {
   envelopeId: string;
   documentName: string;
   signer: SignerInfo;
   documentUrl: string;
+  documents?: SigningDocument[];
   fields: SignerField[];
   consentRequired: boolean;
   consentDisclosure: ConsentDisclosure | null;

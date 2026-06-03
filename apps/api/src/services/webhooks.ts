@@ -280,7 +280,9 @@ export async function claimDueDeliveries(
     RETURNING d.id AS "id", d.attempts AS "attempts", d.max_attempts AS "maxAttempts",
       d.event_type AS "eventType", d.payload AS "payload", e.url AS "url", e.secret AS "secret"
   `);
-  const rows = (Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])) as ClaimedDelivery[];
+  const rows = (
+    Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])
+  ) as ClaimedDelivery[];
   return rows;
 }
 

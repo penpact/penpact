@@ -30,8 +30,9 @@ header.top {
 .logo span { color: var(--brand); }
 .doc-name { color: var(--muted); font-size: 14px; }
 .layout { display: grid; grid-template-columns: 1fr 380px; min-height: calc(100vh - 53px); }
-.viewer { background: #06070a; }
-.viewer iframe { width: 100%; height: 100%; border: 0; display: block; }
+.viewer { background: #06070a; overflow-y: auto; }
+.docframe { width: 100%; height: 92vh; border: 0; display: block; }
+.docframe + .docframe { border-top: 8px solid var(--bg); }
 .panel { border-left: 1px solid var(--line); background: var(--panel); padding: 22px; overflow-y: auto; }
 h2 { font-size: 17px; margin: 0 0 4px; }
 .lead { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
@@ -132,7 +133,12 @@ function showState(kind, big, sub){
 
 function render(){
   $("docName").textContent = session.documentName || "Document";
-  $("viewerFrame").src = api("/document#toolbar=1&view=FitH");
+  const docs = (session.documents && session.documents.length)
+    ? session.documents
+    : [{ documentUrl: api("/document") }];
+  $("viewer").innerHTML = docs.map((d, i) =>
+    '<iframe class="docframe" title="Document ' + (i + 1) + '" src="' + esc(d.documentUrl) + '#toolbar=1&view=FitH"></iframe>'
+  ).join("");
   if (session.consentRequired) renderConsent(); else renderSign();
 }
 
@@ -316,7 +322,7 @@ export function signPageHtml(token: string): string {
   <div class="doc-name" id="docName">Loading document...</div>
 </header>
 <div class="layout">
-  <div class="viewer"><iframe id="viewerFrame" title="Document preview"></iframe></div>
+  <div class="viewer" id="viewer"></div>
   <aside class="panel" id="panel"><p class="lead">Loading...</p></aside>
 </div>
 <script>${SCRIPT(token)}</script>

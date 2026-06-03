@@ -64,7 +64,10 @@ export const templateCreateSchema = z.object({
   documentName: z.string().min(1).max(255),
   roles: z
     .array(
-      z.object({ name: z.string().min(1).max(120), routingOrder: z.number().int().min(1).optional() }),
+      z.object({
+        name: z.string().min(1).max(120),
+        routingOrder: z.number().int().min(1).optional(),
+      }),
     )
     .min(1),
 });
@@ -88,7 +91,9 @@ export const placeTemplateFieldsSchema = z.object({
 
 export const instantiateTemplateSchema = z.object({
   signers: z
-    .array(z.object({ roleId: z.string().uuid(), name: z.string().min(1), email: z.string().email() }))
+    .array(
+      z.object({ roleId: z.string().uuid(), name: z.string().min(1), email: z.string().email() }),
+    )
     .min(1),
   documentName: z.string().min(1).max(255).optional(),
   expiresAt: z.string().datetime().optional(),

@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 
 describe('r2ObjectUrl', () => {
   it('joins base and key, preserving path separators', () => {
-    expect(r2ObjectUrl('https://acct.r2.cloudflarestorage.com/bucket', 'envelopes/abc/source.pdf')).toBe(
-      'https://acct.r2.cloudflarestorage.com/bucket/envelopes/abc/source.pdf',
-    );
+    expect(
+      r2ObjectUrl('https://acct.r2.cloudflarestorage.com/bucket', 'envelopes/abc/source.pdf'),
+    ).toBe('https://acct.r2.cloudflarestorage.com/bucket/envelopes/abc/source.pdf');
   });
 
   it('normalizes a trailing slash on the base', () => {

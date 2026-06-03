@@ -19,15 +19,6 @@ import {
   templateCreateSchema,
   voidSchema,
 } from '../schemas.js';
-import {
-  createTemplate,
-  deleteTemplate,
-  getTemplate,
-  instantiateTemplate,
-  listTemplates,
-  placeTemplateFields,
-  uploadTemplateDocument,
-} from '../services/templates.js';
 import { autoDetectEnvelopeFields } from '../services/ai-fields.js';
 import { downloadCertificate } from '../services/certificate.js';
 import { downloadDocument, uploadDocument } from '../services/documents.js';
@@ -49,6 +40,15 @@ import {
   getSignerDocument,
   getSigningSession,
 } from '../services/signing.js';
+import {
+  createTemplate,
+  deleteTemplate,
+  getTemplate,
+  instantiateTemplate,
+  listTemplates,
+  placeTemplateFields,
+  uploadTemplateDocument,
+} from '../services/templates.js';
 import { getStorage } from '../storage/index.js';
 import type { AppEnv } from '../types.js';
 
@@ -257,7 +257,13 @@ templatesRoute.delete('/:id', async (c) => {
 templatesRoute.put('/:id/document', async (c) => {
   const body = new Uint8Array(await c.req.arrayBuffer());
   return c.json(
-    await uploadTemplateDocument(c.get('db'), getStorage(), c.get('userId'), c.req.param('id'), body),
+    await uploadTemplateDocument(
+      c.get('db'),
+      getStorage(),
+      c.get('userId'),
+      c.req.param('id'),
+      body,
+    ),
   );
 });
 

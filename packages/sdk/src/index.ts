@@ -97,6 +97,7 @@ export interface Document {
   mimeType: string;
   byteSize: number | null;
   pageCount: number | null;
+  position: number;
   isFinal: boolean;
 }
 
