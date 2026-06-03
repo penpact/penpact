@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   buildCompletedEvent,
+  claimDueDeliveries,
   createEndpoint,
   deleteEndpoint,
   drainDueDeliveries,
@@ -125,5 +126,26 @@ describe.skipIf(!url)('webhook endpoints + enqueue (integration)', () => {
     expect(afterOk?.status).toBe('succeeded');
     expect(afterOk?.attempts).toBe(2);
     expect(afterOk?.responseStatus).toBe(200);
+  });
+
+  it('claimDueDeliveries leases rows so a second worker gets none (multi-instance safe)', async () => {
+    await db.delete(webhookDeliveries);
+    const owner = (
+      await db
+        .insert(users)
+        .values({ email: `wh-${randomUUID()}@penpact.test` })
+        .returning({ id: users.id })
+    )[0]?.id as string;
+    await createEndpoint(db, owner, 'https://claim.test/hook');
+    await enqueueEnvelopeEvent(db, owner, buildCompletedEvent(randomUUID(), 'hash'));
+
+    // Margin absorbs any clock skew between the test host and the database.
+    const now = new Date(Date.now() + 5_000);
+    const first = await claimDueDeliveries(db, now, 50, 60_000);
+    expect(first.length).toBe(1);
+    // A concurrent worker claiming at the same instant must get nothing: the
+    // first claim leased the row by pushing next_attempt_at into the future.
+    const second = await claimDueDeliveries(db, now, 50, 60_000);
+    expect(second.length).toBe(0);
   });
 });

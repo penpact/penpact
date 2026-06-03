@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { type Database, webhookDeliveries, webhookEndpoints } from '@penpact/db';
-import { and, desc, eq, lte } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { generateWebhookSecret } from '../lib/crypto.js';
 
 export interface WebhookEvent {
@@ -236,6 +236,52 @@ export interface DrainOptions {
   fetch?: WebhookFetch;
   now?: Date;
   limit?: number;
+  /** Lease window: claimed rows are hidden from other workers for this long. */
+  leaseMs?: number;
+}
+
+export interface ClaimedDelivery {
+  id: string;
+  attempts: number;
+  maxAttempts: number;
+  eventType: string;
+  payload: unknown;
+  url: string;
+  secret: string;
+}
+
+/**
+ * Atomically claim a batch of due deliveries for one worker. `FOR UPDATE SKIP
+ * LOCKED` plus a lease (pushing next_attempt_at into the future) means two
+ * workers never grab the same row, so a horizontally-scaled deployment never
+ * double-sends. If a worker crashes mid-send, the lease expires and the row
+ * becomes due again.
+ */
+export async function claimDueDeliveries(
+  db: Database,
+  now: Date,
+  limit: number,
+  leaseMs: number,
+): Promise<ClaimedDelivery[]> {
+  const leaseUntil = new Date(now.getTime() + leaseMs).toISOString();
+  const nowIso = now.toISOString();
+  const result = await db.execute(sql`
+    UPDATE webhook_deliveries AS d
+    SET next_attempt_at = ${leaseUntil}::timestamptz
+    FROM webhook_endpoints AS e
+    WHERE d.endpoint_id = e.id
+      AND d.id IN (
+        SELECT id FROM webhook_deliveries
+        WHERE status = 'pending' AND next_attempt_at <= ${nowIso}::timestamptz
+        ORDER BY next_attempt_at
+        LIMIT ${limit}
+        FOR UPDATE SKIP LOCKED
+      )
+    RETURNING d.id AS "id", d.attempts AS "attempts", d.max_attempts AS "maxAttempts",
+      d.event_type AS "eventType", d.payload AS "payload", e.url AS "url", e.secret AS "secret"
+  `);
+  const rows = (Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])) as ClaimedDelivery[];
+  return rows;
 }
 
 export interface DrainSummary {
@@ -257,21 +303,11 @@ export async function drainDueDeliveries(
   const now = opts.now ?? new Date();
   const send = opts.fetch ?? (globalThis.fetch as unknown as WebhookFetch);
   const limit = opts.limit ?? 50;
+  const leaseMs = opts.leaseMs ?? 60_000;
 
-  const due = await db
-    .select({
-      id: webhookDeliveries.id,
-      attempts: webhookDeliveries.attempts,
-      maxAttempts: webhookDeliveries.maxAttempts,
-      eventType: webhookDeliveries.eventType,
-      payload: webhookDeliveries.payload,
-      url: webhookEndpoints.url,
-      secret: webhookEndpoints.secret,
-    })
-    .from(webhookDeliveries)
-    .innerJoin(webhookEndpoints, eq(webhookEndpoints.id, webhookDeliveries.endpointId))
-    .where(and(eq(webhookDeliveries.status, 'pending'), lte(webhookDeliveries.nextAttemptAt, now)))
-    .limit(limit);
+  // Claim a disjoint batch (lease + SKIP LOCKED) so concurrent workers never
+  // process the same delivery.
+  const due = await claimDueDeliveries(db, now, limit, leaseMs);
 
   const summary: DrainSummary = { attempted: due.length, succeeded: 0, rescheduled: 0, failed: 0 };
 
