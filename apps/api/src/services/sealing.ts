@@ -3,6 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { sha256HexBytes } from '../lib/crypto.js';
 import type { Storage } from '../storage/index.js';
 import { buildCertificatePayload, loadEvents } from './certificate.js';
+import { sealPdfWithPades } from './pades.js';
 import { buildCertificatePdf, buildFinalPdf } from './pdf.js';
 
 /**
@@ -53,7 +54,8 @@ export async function finalizeEnvelope(
     storage.get(source.storageKey),
   ]);
 
-  const finalBytes = await buildFinalPdf(sourceBytes, fieldRows);
+  const flattened = await buildFinalPdf(sourceBytes, fieldRows);
+  const finalBytes = await sealPdfWithPades(flattened);
   const finalHash = sha256HexBytes(finalBytes);
   const finalKey = `envelopes/${envelopeId}/final.pdf`;
   await storage.put(finalKey, finalBytes, 'application/pdf');

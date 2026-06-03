@@ -15,8 +15,9 @@ not yet stable.**
 - **Signer flow**: token-authorized session, ESIGN §7001(c) consent, complete, decline —
   with a state machine and an **append-only audit trail**.
 - **AI field auto-detection** via Claude (`/fields/auto-detect`), graceful when unconfigured.
-- **Sealing**: field flattening, SHA-256 of original + final, immutable retention, and a
-  generated **Certificate of Completion** PDF.
+- **Sealing**: field flattening, **PAdES-B digital signature** (self-signed per-process by
+  default; configure a CA certificate via `PENPACT_SIGNING_P12_BASE64` for a trusted chain),
+  SHA-256 of original + final, immutable retention, and a generated **Certificate of Completion** PDF.
 - **Webhooks**: HMAC-SHA256-signed `envelope.completed` events.
 - **Official TypeScript SDK** — `@penpact/sdk`.
 - **Postgres schema + migrations** (Drizzle) with a DB-enforced append-only events trigger.
@@ -25,8 +26,8 @@ not yet stable.**
 
 ### Known limitations
 
-- The seal is **integrity-only** (hash + lock + immutable retention). A cryptographic
-  **PAdES (PKI)** signature is planned.
+- PAdES signing uses a **self-signed** certificate unless you provide a CA-issued one
+  (`PENPACT_SIGNING_P12_BASE64`); a self-signed chain is valid but untrusted by viewers.
 - The consent disclosure text is a draft pending legal review.
 - No hosted cloud yet — self-host via Docker. Email delivery and a dashboard are planned.
 
