@@ -24,6 +24,7 @@
     "@penpact/core": "workspace:*",
     "@penpact/db": "workspace:*",
     "@penpact/sdk": "workspace:*",
+    "@penpact/signing-ui": "workspace:*",
     "drizzle-orm": "^0.38.0",
     "pdf-lib": "^1.17.1",
     "typescript": "^5.7.0",
