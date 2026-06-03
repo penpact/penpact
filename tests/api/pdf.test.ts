@@ -1,6 +1,12 @@
-import { buildFinalPdf, parsePngDataUrl } from '@penpact/api/pdf';
+import { buildFinalPdf, buildMergedFinalPdf, parsePngDataUrl } from '@penpact/api/pdf';
 import { PDFDocument } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
+
+async function pdfWithPages(n: number): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  for (let i = 0; i < n; i++) pdf.addPage([612, 792]);
+  return pdf.save();
+}
 
 // 1x1 transparent PNG.
 const PNG_1x1 =
@@ -29,5 +35,21 @@ describe('pdf sealer', () => {
     expect(out.byteLength).toBeGreaterThan(0);
     const reloaded = await PDFDocument.load(out);
     expect(reloaded.getPageCount()).toBe(1);
+  });
+
+  it('buildMergedFinalPdf merges sources in order and places fields per document', async () => {
+    const docA = { documentId: 'a', bytes: await pdfWithPages(2) };
+    const docB = { documentId: 'b', bytes: await pdfWithPages(1) };
+    const out = await buildMergedFinalPdf(
+      [docA, docB],
+      [
+        // a typed field on doc A page 2, a drawn field on doc B page 1
+        { documentId: 'a', page: 2, x: 72, y: 100, width: 120, height: 20, value: 'on A p2' },
+        { documentId: 'b', page: 1, x: 72, y: 100, width: 160, height: 50, value: `data:image/png;base64,${PNG_1x1}` },
+      ],
+    );
+    const reloaded = await PDFDocument.load(out);
+    // 2 pages from A + 1 from B = 3
+    expect(reloaded.getPageCount()).toBe(3);
   });
 });

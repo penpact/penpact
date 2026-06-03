@@ -21,12 +21,51 @@ export function parsePngDataUrl(value: string): Uint8Array | null {
   }
 }
 
+export interface MergeSource {
+  documentId: string;
+  bytes: Uint8Array;
+}
+export interface MergeField extends FlattenField {
+  documentId: string;
+}
+
 /**
- * Flatten signer-entered values onto the source PDF. Field coordinates use a
- * top-left origin (per our schema); pdf-lib uses bottom-left, hence the flip.
- *
- * This is the v1 integrity output — the document is locked and hashed. A
- * cryptographic PAdES signature (PKI) is the next increment (PLAN §7).
+ * Draw one field value onto a page. A `data:image/png` value (drawn/uploaded
+ * signature) is embedded as an image; everything else is flattened as text.
+ * Field coordinates use a top-left origin; pdf-lib uses bottom-left (the flip).
+ */
+async function drawField(
+  pdf: PDFDocument,
+  page: PDFPage,
+  font: PDFFont,
+  field: FlattenField,
+): Promise<void> {
+  if (field.value === null || field.value === '') return;
+  const { height } = page.getSize();
+  const png = parsePngDataUrl(field.value);
+  if (png) {
+    const image = await pdf.embedPng(png);
+    page.drawImage(image, {
+      x: field.x,
+      y: height - field.y - field.height,
+      width: field.width,
+      height: field.height,
+    });
+    return;
+  }
+  const size = Math.min(14, Math.max(8, field.height * 0.6));
+  page.drawText(field.value, {
+    x: field.x,
+    y: height - field.y - field.height + (field.height - size) / 2,
+    size,
+    font,
+    color: rgb(0.05, 0.05, 0.05),
+  });
+}
+
+/**
+ * Flatten signer-entered values onto a single source PDF. The v1 integrity
+ * output — the document is locked and hashed.
  */
 export async function buildFinalPdf(
   sourceBytes: Uint8Array,
@@ -35,42 +74,39 @@ export async function buildFinalPdf(
   const pdf = await PDFDocument.load(sourceBytes);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const pages = pdf.getPages();
-
   for (const field of fields) {
-    if (field.value === null || field.value === '') {
-      continue;
-    }
     const page = pages[field.page - 1];
-    if (!page) {
-      continue;
-    }
-    const { height } = page.getSize();
-
-    // Drawn / uploaded signatures arrive as a PNG data URL — embed the image
-    // into the field box. Everything else is flattened as text.
-    const png = parsePngDataUrl(field.value);
-    if (png) {
-      const image = await pdf.embedPng(png);
-      page.drawImage(image, {
-        x: field.x,
-        y: height - field.y - field.height,
-        width: field.width,
-        height: field.height,
-      });
-      continue;
-    }
-
-    const size = Math.min(14, Math.max(8, field.height * 0.6));
-    page.drawText(field.value, {
-      x: field.x,
-      y: height - field.y - field.height + (field.height - size) / 2,
-      size,
-      font,
-      color: rgb(0.05, 0.05, 0.05),
-    });
+    if (page) await drawField(pdf, page, font, field);
   }
-
   return pdf.save();
+}
+
+/**
+ * Merge several source documents (in the given order) into one PDF and flatten
+ * each field onto `pageOffset[documentId] + field.page`. Used to seal a
+ * multi-document envelope into a single final PDF.
+ */
+export async function buildMergedFinalPdf(
+  sources: MergeSource[],
+  fields: MergeField[],
+): Promise<Uint8Array> {
+  const merged = await PDFDocument.create();
+  const font = await merged.embedFont(StandardFonts.Helvetica);
+  const offset = new Map<string, number>();
+  for (const source of sources) {
+    offset.set(source.documentId, merged.getPageCount());
+    const doc = await PDFDocument.load(source.bytes);
+    const copied = await merged.copyPages(doc, doc.getPageIndices());
+    for (const page of copied) merged.addPage(page);
+  }
+  const pages = merged.getPages();
+  for (const field of fields) {
+    const base = offset.get(field.documentId);
+    if (base === undefined) continue;
+    const page = pages[base + field.page - 1];
+    if (page) await drawField(merged, page, font, field);
+  }
+  return merged.save();
 }
 
 /** Render a one-page Certificate of Completion from the audit payload. */
