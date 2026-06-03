@@ -6,7 +6,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/drizzle"]
+    "includes": ["**", "!**/drizzle", "!apps/marketing"]
   },
   "formatter": {
     "enabled": true,

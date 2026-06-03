@@ -1,0 +1,55 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../layouts/Base.astro';
+
+export async function getStaticPaths() {
+  const docs = await getCollection('docs');
+  return docs.map((doc) => ({
+    params: { slug: doc.data.slug },
+    props: { doc },
+  }));
+}
+
+const { doc } = Astro.props;
+const { Content } = await render(doc);
+const { title, description, slug, author, publishedAt, updatedAt } = doc.data;
+
+function fmt(d?: string) {
+  if (!d) return null;
+  const date = new Date(`${d}T00:00:00Z`);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+}
+const published = fmt(publishedAt);
+const updated = fmt(updatedAt);
+---
+
+<Base title={`${title} | Penpact`} description={description} path={`/${slug}`} article>
+  <article class="prose wrap">
+    {(author || published) && (
+      <p class="meta">
+        {author}{author && published ? ' · ' : ''}
+        {published && <time datetime={publishedAt}>{published}</time>}
+        {updated && updated !== published && <span class="upd"> (updated {updated})</span>}
+      </p>
+    )}
+    <Content />
+  </article>
+</Base>
+
+<style is:global>
+  .prose { max-width: 760px; padding-top: 36px; }
+  .prose .meta { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+  .prose h1 { font-size: clamp(30px, 5vw, 42px); letter-spacing: -0.025em; line-height: 1.1; margin: 6px 0 22px; }
+  .prose h2 { font-size: clamp(22px, 3.4vw, 28px); letter-spacing: -0.015em; margin: 40px 0 12px; padding-top: 6px; }
+  .prose h3 { font-size: 19px; margin: 26px 0 8px; }
+  .prose p { margin: 0 0 16px; }
+  .prose ul, .prose ol { margin: 0 0 16px; padding-left: 22px; }
+  .prose li { margin: 6px 0; }
+  .prose a { color: var(--brand-2); }
+  .prose table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; display: block; overflow-x: auto; }
+  .prose th, .prose td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  .prose th { background: var(--panel); font-weight: 600; }
+  .prose pre { margin: 0 0 18px; }
+  .prose hr { border: 0; border-top: 1px solid var(--line); margin: 32px 0; }
+  .prose blockquote { margin: 0 0 16px; padding: 2px 16px; border-left: 3px solid var(--line); color: var(--muted); }
+</style>

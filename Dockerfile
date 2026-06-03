@@ -9,7 +9,8 @@ WORKDIR /app
 FROM base AS build
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm build
+# Build only the API and its workspace dependencies (not the marketing site).
+RUN pnpm --filter "@penpact/api..." build
 
 # ── runner ─────────────────────────────────────────────────────────────────
 FROM base AS runner

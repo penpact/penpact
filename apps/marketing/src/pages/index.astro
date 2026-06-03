@@ -1,0 +1,214 @@
+---
+import Base from '../layouts/Base.astro';
+
+const title = 'Penpact, the open-source e-signature API for developers';
+const description =
+  'Penpact is an open-source, embeddable e-signature API. Self-host under AGPL-3.0 or use the managed cloud. Typed TypeScript SDK, AI field detection, audit trail, no per-seat billing.';
+
+const quickstart = `import { PenpactClient } from '@penpact/sdk';
+
+const penpact = new PenpactClient({ apiKey: process.env.PENPACT_API_KEY! });
+
+const envelope = await penpact.createEnvelope({
+  documentName: 'Mutual NDA',
+  signers: [{ name: 'Ada Lovelace', email: 'ada@example.com' }],
+});
+
+await penpact.uploadDocument(envelope.id, pdfBytes);
+await penpact.placeFields(envelope.id, [
+  { type: 'signature', signerId: envelope.signers[0].id,
+    page: 1, x: 72, y: 620, width: 200, height: 40 },
+]);
+await penpact.send(envelope.id);
+// Your signer gets a link, consents, and signs. You get a sealed PDF.`;
+
+const features = [
+  {
+    h: 'Typed SDK, not a generated blob',
+    p: 'A small, hand-written TypeScript client you can read in one sitting. No 200-method generated SDK, no learning a foreign object model.',
+  },
+  {
+    h: 'AI field detection',
+    p: 'Point Claude at the PDF and it proposes signature, date, and name fields. Review and send. Set ANTHROPIC_API_KEY to enable it when self-hosting.',
+  },
+  {
+    h: 'Self-host in two minutes',
+    p: 'docker compose up starts Postgres and the API and prints a working key. Keep every document on your own infrastructure under AGPL-3.0.',
+  },
+  {
+    h: 'Evidence built in',
+    p: 'ESIGN consent, an append-only audit trail with IP and timestamps, a PAdES digital signature on the sealed PDF, and a SHA-256 Certificate of Completion.',
+  },
+  {
+    h: 'No per-seat, no per-page',
+    p: 'Usage-based pricing on the managed cloud, and free forever when you self-host. Signing is part of your product, not a per-envelope tax.',
+  },
+  {
+    h: 'Embeddable signing',
+    p: 'A hosted signing page today, a drop-in React <Sign/> component next. Your users stay in your product.',
+  },
+];
+
+const steps = [
+  ['Create an envelope', 'One call with the document name and signers.'],
+  ['Upload and place fields', 'Send a PDF, then place fields by coordinate or let AI propose them.'],
+  ['Send', 'Each signer gets a link, accepts the ESIGN disclosure, and signs.'],
+  ['Get a sealed PDF', 'Penpact flattens the values, seals the PDF, and writes a certificate of completion.'],
+];
+---
+
+<Base title={title} description={description} path="/">
+  <script type="application/ld+json" set:html={JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Penpact',
+    url: 'https://penpact.dev',
+    description,
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Linux, macOS, Windows',
+    softwareVersion: '0.1.0',
+    license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+    isAccessibleForFree: true,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    codeRepository: 'https://github.com/penpact/penpact',
+    programmingLanguage: 'TypeScript',
+    sameAs: 'https://github.com/penpact/penpact',
+  })} />
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Open source, AGPL-3.0, self-hostable</p>
+      <h1>The e-signature API built to live <span>inside your product</span>.</h1>
+      <p class="sub">
+        Penpact is an open-source, embeddable e-signature API, the open
+        alternative to DocuSign. Self-host the whole stack or use the managed
+        cloud. Typed SDK, AI field detection, a real audit trail, no per-seat
+        billing.
+      </p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/penpact/penpact">Star on GitHub</a>
+        <a class="btn btn-ghost" href="/embed-e-signatures-nextjs">Read the quickstart</a>
+      </div>
+      <p class="note">
+        Early development (v0.1.0). The API is not stable yet and the consent
+        text is pending a lawyer's review. We would rather say that plainly.
+      </p>
+    </div>
+  </section>
+
+  <section class="wrap band">
+    <div class="code-col">
+      <h2>From zero to a sent document</h2>
+      <p class="lead">
+        Install <code>@penpact/sdk</code>, create an envelope, place a field,
+        and send. The signer does the rest.
+      </p>
+      <a class="btn btn-ghost" href="/embed-e-signatures-react">Add it to a React app</a>
+    </div>
+    <pre><code>{quickstart}</code></pre>
+  </section>
+
+  <section class="wrap">
+    <h2 class="center">How it works</h2>
+    <ol class="steps">
+      {steps.map(([h, p], i) => (
+        <li>
+          <span class="num">{i + 1}</span>
+          <div><strong>{h}</strong><p>{p}</p></div>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section class="wrap">
+    <h2 class="center">Why developers pick Penpact</h2>
+    <div class="grid">
+      {features.map((f) => (
+        <div class="card">
+          <h3>{f.h}</h3>
+          <p>{f.p}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="wrap compare">
+    <div>
+      <h2>Coming from DocuSign?</h2>
+      <p class="lead">
+        Per-envelope pricing, seat minimums, a generated SDK, and an iframe you
+        style around. Penpact takes the opposite stance: open source, a typed
+        SDK, and usage-based pricing with no seats.
+      </p>
+      <a class="btn btn-ghost" href="/penpact-vs-docusign">See the full comparison</a>
+    </div>
+    <ul class="links">
+      <li><a href="/open-source-docusign-alternative">Open-source DocuSign alternative</a></li>
+      <li><a href="/penpact-vs-docusign">Penpact vs the DocuSign API</a></li>
+      <li><a href="/embed-e-signatures-nextjs">Embed e-signatures in Next.js</a></li>
+      <li><a href="/embed-e-signatures-react">Add e-signatures to React</a></li>
+    </ul>
+  </section>
+
+  <section class="wrap final">
+    <h2>Read the source. Run it yourself.</h2>
+    <p class="lead">
+      The core engine is on GitHub under AGPL-3.0. Self-host for free, or use
+      the managed cloud when you would rather not run the infrastructure.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/penpact/penpact">github.com/penpact/penpact</a>
+      <a class="btn btn-ghost" href="https://api.penpact.dev/health">API status</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero { padding: 84px 0 28px; }
+  .eyebrow {
+    color: var(--brand-2); font-weight: 600; font-size: 14px;
+    letter-spacing: 0.02em; margin: 0 0 14px; text-transform: none;
+  }
+  h1 {
+    font-size: clamp(34px, 6vw, 58px); line-height: 1.05; letter-spacing: -0.03em;
+    margin: 0 0 20px; max-width: 16ch;
+  }
+  h1 span { color: var(--brand); }
+  .sub { font-size: clamp(17px, 2.4vw, 20px); color: var(--muted); max-width: 60ch; margin: 0 0 26px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .note { color: var(--muted); font-size: 13.5px; margin-top: 20px; max-width: 60ch; }
+
+  h2 { font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.02em; margin: 0 0 14px; }
+  h2.center { text-align: center; margin-top: 72px; margin-bottom: 28px; }
+  .lead { color: var(--muted); max-width: 56ch; }
+
+  .band {
+    display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 32px; align-items: center;
+    margin-top: 64px;
+  }
+  .band pre { margin: 0; }
+
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; max-width: 760px; margin-inline: auto; }
+  .steps li { display: flex; gap: 16px; align-items: flex-start; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .steps .num { flex: none; width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--brand) 22%, transparent); color: var(--brand-2); font-weight: 700; display: grid; place-items: center; font-size: 15px; }
+  .steps p { margin: 4px 0 0; color: var(--muted); font-size: 14.5px; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .card h3 { margin: 0 0 8px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; margin-top: 72px; }
+  .compare .links { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .compare .links a { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; color: var(--ink); }
+  .compare .links a:hover { border-color: var(--brand); text-decoration: none; }
+
+  .final { text-align: center; margin-top: 80px; }
+  .final .lead { margin-inline: auto; }
+  .final .cta { justify-content: center; margin-top: 20px; }
+
+  @media (max-width: 820px) {
+    .band, .compare { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>

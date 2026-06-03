@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Penpact, the open-source e-signature API">
+  <rect width="1200" height="630" fill="#0b0c10"/>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#g)"/>
+  <defs>
+    <radialGradient id="g" cx="78%" cy="18%" r="75%">
+      <stop offset="0%" stop-color="#5b8cff" stop-opacity="0.18"/>
+      <stop offset="55%" stop-color="#0b0c10" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g transform="translate(90,86)">
+    <rect width="74" height="74" rx="16" fill="#11131a" stroke="#262a35" stroke-width="2"/>
+    <path d="M26 56V22h16a10.5 10.5 0 0 1 0 21h-8" fill="none" stroke="#5b8cff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="96" y="52" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="42" font-weight="700" fill="#e8eaf0">Pen<tspan fill="#5b8cff">pact</tspan></text>
+  </g>
+  <text x="90" y="320" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="64" font-weight="800" fill="#e8eaf0" letter-spacing="-1.5">The open-source</text>
+  <text x="90" y="392" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="64" font-weight="800" fill="#e8eaf0" letter-spacing="-1.5">e-signature API.</text>
+  <text x="92" y="462" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="30" fill="#9aa3b2">Embeddable. Self-hostable. Typed SDK. AGPL-3.0.</text>
+  <text x="92" y="560" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="26" fill="#7aa2ff">github.com/penpact/penpact</text>
+</svg>
