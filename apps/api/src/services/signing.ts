@@ -4,6 +4,7 @@ import { CONSENT_DISCLOSURE } from '../consent.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { CompleteInput, DeclineInput } from '../schemas.js';
 import type { Storage } from '../storage/index.js';
+import { sendSigningInvite } from './email.js';
 import {
   type FieldResponse,
   type RequestContext,
@@ -12,6 +13,7 @@ import {
   toSignerResponse,
 } from './envelopes.js';
 import { recordEvent } from './events.js';
+import { activeOrder, isActiveSigner } from './routing.js';
 import { finalizeEnvelope } from './sealing.js';
 import { buildCompletedEvent, buildDeclinedEvent, enqueueEnvelopeEvent } from './webhooks.js';
 
@@ -56,11 +58,35 @@ async function loadByToken(
     .from(envelopes)
     .where(eq(envelopes.id, signer.envelopeId))
     .limit(1);
-  const envelope = envRows[0];
+  let envelope = envRows[0];
   if (!envelope) {
     throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Signing link not found.' });
   }
+  // Lazily expire: no cron needed — the first access past expiry flips the state.
+  if (
+    envelope.expiresAt &&
+    envelope.expiresAt.getTime() < Date.now() &&
+    !CLOSED_ENVELOPE_STATUSES.has(envelope.status)
+  ) {
+    await db.update(envelopes).set({ status: 'expired' }).where(eq(envelopes.id, envelope.id));
+    envelope = { ...envelope, status: 'expired' };
+  }
   return { signer, envelope };
+}
+
+/** Throw 409 if an earlier routing-order signer has not finished yet. */
+async function requireSignerTurn(db: Database, signer: SignerRow): Promise<void> {
+  const all = await db
+    .select({ routingOrder: signers.routingOrder, status: signers.status })
+    .from(signers)
+    .where(eq(signers.envelopeId, signer.envelopeId));
+  if (!isActiveSigner(signer, all)) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'Waiting for an earlier signer to finish.',
+    });
+  }
 }
 
 function gone(): never {
@@ -80,6 +106,7 @@ export async function getSigningSession(
   if (envelopeClosed(envelope) || signerDone(signer)) {
     gone();
   }
+  await requireSignerTurn(db, signer);
 
   let current = signer;
   if (!signer.viewedAt) {
@@ -147,6 +174,7 @@ export async function acceptConsent(
       detail: 'You have already responded.',
     });
   }
+  await requireSignerTurn(db, signer);
   if (disclosureHash !== CONSENT_DISCLOSURE.hash) {
     throw new HttpProblem({
       status: 422,
@@ -205,6 +233,7 @@ export async function completeSigning(
       detail: 'You have already responded to this document.',
     });
   }
+  await requireSignerTurn(db, signer);
   if (!signer.consentGiven) {
     throw new HttpProblem({
       status: 422,
@@ -240,6 +269,7 @@ export async function completeSigning(
 
   const now = new Date();
   let envelopeCompleted = false;
+  const newlyActivated: Array<{ name: string; email: string; signingToken: string }> = [];
   await db.transaction(async (tx) => {
     for (const field of myFields) {
       const value = provided.get(field.id);
@@ -289,7 +319,14 @@ export async function completeSigning(
     });
 
     const all = await tx
-      .select({ status: signers.status })
+      .select({
+        id: signers.id,
+        name: signers.name,
+        email: signers.email,
+        status: signers.status,
+        routingOrder: signers.routingOrder,
+        signingToken: signers.signingToken,
+      })
       .from(signers)
       .where(eq(signers.envelopeId, envelope.id));
     if (all.every((s) => s.status === 'signed')) {
@@ -304,12 +341,39 @@ export async function completeSigning(
         .update(envelopes)
         .set({ status: 'partially_signed' })
         .where(eq(envelopes.id, envelope.id));
+      // Advance the chain: invite the next routing group once this one is done.
+      const order = activeOrder(all);
+      for (const s of all) {
+        if (s.status === 'pending' && s.routingOrder === order) {
+          await tx.update(signers).set({ status: 'sent' }).where(eq(signers.id, s.id));
+          await recordEvent(tx, {
+            envelopeId: envelope.id,
+            signerId: s.id,
+            type: 'email_sent',
+            actor: 'system',
+          });
+          newlyActivated.push({ name: s.name, email: s.email, signingToken: s.signingToken });
+        }
+      }
     }
   });
 
   if (envelopeCompleted) {
     const { finalHash } = await finalizeEnvelope(db, storage, envelope.id);
     await enqueueEnvelopeEvent(db, envelope.userId, buildCompletedEvent(envelope.id, finalHash));
+  } else if (newlyActivated.length > 0) {
+    // Invite the freshly-activated next routing group (best-effort).
+    const base = process.env.PUBLIC_BASE_URL ?? '';
+    await Promise.allSettled(
+      newlyActivated.map((s) =>
+        sendSigningInvite({
+          to: s.email,
+          signerName: s.name,
+          documentName: envelope.documentName,
+          signUrl: `${base}/sign/${s.signingToken}`,
+        }),
+      ),
+    );
   }
 
   return reloadSigner(db, signer.id);
@@ -332,6 +396,7 @@ export async function declineSigning(
       detail: 'You have already responded.',
     });
   }
+  await requireSignerTurn(db, signer);
 
   const now = new Date();
   await db.transaction(async (tx) => {

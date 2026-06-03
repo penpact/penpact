@@ -51,6 +51,10 @@ export const declineSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
+export const voidSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
 export type CompleteInput = z.infer<typeof completeSchema>;
 export type DeclineInput = z.infer<typeof declineSchema>;
 

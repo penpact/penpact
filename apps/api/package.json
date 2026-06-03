@@ -52,6 +52,10 @@
     "./auth-tokens": {
       "import": "./dist/services/auth-tokens.js",
       "default": "./dist/services/auth-tokens.js"
+    },
+    "./routing": {
+      "import": "./dist/services/routing.js",
+      "default": "./dist/services/routing.js"
     }
   },
   "scripts": {

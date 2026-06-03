@@ -14,6 +14,7 @@ import {
   declineSchema,
   envelopeCreateSchema,
   placeFieldsSchema,
+  voidSchema,
 } from '../schemas.js';
 import { autoDetectEnvelopeFields } from '../services/ai-fields.js';
 import { downloadCertificate } from '../services/certificate.js';
@@ -24,7 +25,9 @@ import {
   type ListOptions,
   listEnvelopes,
   type RequestContext,
+  resendInvite,
   sendEnvelope,
+  voidEnvelope,
 } from '../services/envelopes.js';
 import { placeFields } from '../services/fields.js';
 import {
@@ -123,6 +126,28 @@ envelopesRoute.post('/:id/fields/auto-detect', async (c) => {
 envelopesRoute.post('/:id/send', async (c) => {
   const envelope = await sendEnvelope(c.get('db'), c.get('userId'), c.req.param('id'), reqCtx(c));
   return c.json(envelope);
+});
+
+envelopesRoute.post('/:id/void', validateJson(voidSchema), async (c) => {
+  const envelope = await voidEnvelope(
+    c.get('db'),
+    c.get('userId'),
+    c.req.param('id'),
+    c.req.valid('json').reason,
+    reqCtx(c),
+  );
+  return c.json(envelope);
+});
+
+envelopesRoute.post('/:id/signers/:signerId/resend', async (c) => {
+  await resendInvite(
+    c.get('db'),
+    c.get('userId'),
+    c.req.param('id'),
+    c.req.param('signerId'),
+    reqCtx(c),
+  );
+  return c.body(null, 204);
 });
 
 envelopesRoute.get('/:id/certificate', async (c) => {

@@ -5,7 +5,7 @@ import { generateWebhookSecret } from '../lib/crypto.js';
 
 export interface WebhookEvent {
   id: string;
-  type: 'envelope.completed' | 'envelope.declined';
+  type: 'envelope.completed' | 'envelope.declined' | 'envelope.voided';
   createdAt: string;
   data: { envelopeId: string; status: string; documentHashFinal: string | null };
 }
@@ -73,6 +73,15 @@ export function buildDeclinedEvent(envelopeId: string): WebhookEvent {
     type: 'envelope.declined',
     createdAt: new Date().toISOString(),
     data: { envelopeId, status: 'declined', documentHashFinal: null },
+  };
+}
+
+export function buildVoidedEvent(envelopeId: string): WebhookEvent {
+  return {
+    id: `evt_${randomUUID()}`,
+    type: 'envelope.voided',
+    createdAt: new Date().toISOString(),
+    data: { envelopeId, status: 'voided', documentHashFinal: null },
   };
 }
 

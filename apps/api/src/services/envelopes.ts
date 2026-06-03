@@ -3,9 +3,13 @@ import { and, desc, eq, lt, or } from 'drizzle-orm';
 import { generateSigningToken } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { EnvelopeCreateInput } from '../schemas.js';
-import { requireDraftEnvelope } from './access.js';
+import { requireDraftEnvelope, requireEnvelope } from './access.js';
 import { sendSigningInvite } from './email.js';
 import { recordEvent } from './events.js';
+import { activeOrder, isActiveSigner } from './routing.js';
+import { buildVoidedEvent, enqueueEnvelopeEvent } from './webhooks.js';
+
+const CLOSED_STATUSES = new Set(['completed', 'voided', 'expired', 'declined']);
 
 export interface RequestContext {
   ip: string | null;
@@ -202,13 +206,20 @@ export async function sendEnvelope(
     }
   }
 
+  // Only the first routing group is invited now; later groups activate as
+  // earlier signers finish (see completeSigning). Equal orders sign in parallel.
+  const firstOrder = activeOrder(
+    signerRows.map((s) => ({ routingOrder: s.routingOrder, status: 'pending' })),
+  );
+  const active = signerRows.filter((s) => s.routingOrder === firstOrder);
+
   await db.transaction(async (tx) => {
     await tx
       .update(envelopes)
       .set({ status: 'sent', sentAt: new Date() })
       .where(eq(envelopes.id, envelopeId));
-    await tx.update(signers).set({ status: 'sent' }).where(eq(signers.envelopeId, envelopeId));
-    for (const signer of signerRows) {
+    for (const signer of active) {
+      await tx.update(signers).set({ status: 'sent' }).where(eq(signers.id, signer.id));
       await recordEvent(tx, {
         envelopeId,
         signerId: signer.id,
@@ -223,7 +234,7 @@ export async function sendEnvelope(
   // Deliver signing invitations (best-effort; no-op unless email is configured).
   const base = process.env.PUBLIC_BASE_URL ?? '';
   await Promise.allSettled(
-    signerRows.map((signer) =>
+    active.map((signer) =>
       sendSigningInvite({
         to: signer.email,
         signerName: signer.name,
@@ -238,6 +249,96 @@ export async function sendEnvelope(
     throw new Error('Envelope vanished after send');
   }
   return result;
+}
+
+/** Cancel an envelope that is not already in a terminal state. */
+export async function voidEnvelope(
+  db: Database,
+  userId: string,
+  envelopeId: string,
+  reason: string | undefined,
+  ctx: RequestContext,
+): Promise<EnvelopeResponse> {
+  const env = await requireEnvelope(db, userId, envelopeId);
+  if (CLOSED_STATUSES.has(env.status)) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: `Envelope is ${env.status} and cannot be voided.`,
+    });
+  }
+  await db.transaction(async (tx) => {
+    await tx
+      .update(envelopes)
+      .set({ status: 'voided', voidedAt: new Date() })
+      .where(eq(envelopes.id, envelopeId));
+    await recordEvent(tx, {
+      envelopeId,
+      type: 'voided',
+      actor: 'sender',
+      ipAddress: ctx.ip,
+      userAgent: ctx.ua,
+      metadata: { reason: reason ?? null },
+    });
+  });
+  await enqueueEnvelopeEvent(db, userId, buildVoidedEvent(envelopeId));
+  const result = await getEnvelope(db, userId, envelopeId);
+  if (!result) {
+    throw new Error('Envelope vanished after void');
+  }
+  return result;
+}
+
+/** Re-send the signing invitation to a signer whose turn has come. */
+export async function resendInvite(
+  db: Database,
+  userId: string,
+  envelopeId: string,
+  signerId: string,
+  ctx: RequestContext,
+): Promise<void> {
+  const env = await requireEnvelope(db, userId, envelopeId);
+  if (!['sent', 'viewed', 'partially_signed'].includes(env.status)) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'Envelope is not awaiting signatures.',
+    });
+  }
+  const all = await db.select().from(signers).where(eq(signers.envelopeId, envelopeId));
+  const signer = all.find((s) => s.id === signerId);
+  if (!signer) {
+    throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Signer not found.' });
+  }
+  if (signer.status === 'signed' || signer.status === 'declined') {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'This signer has already responded.',
+    });
+  }
+  if (!isActiveSigner(signer, all)) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'It is not this signer’s turn yet.',
+    });
+  }
+  await recordEvent(db, {
+    envelopeId,
+    signerId: signer.id,
+    type: 'email_sent',
+    actor: 'system',
+    ipAddress: ctx.ip,
+    userAgent: ctx.ua,
+  });
+  const base = process.env.PUBLIC_BASE_URL ?? '';
+  await sendSigningInvite({
+    to: signer.email,
+    signerName: signer.name,
+    documentName: env.documentName,
+    signUrl: `${base}/sign/${signer.signingToken}`,
+  });
 }
 
 export async function getEnvelope(
