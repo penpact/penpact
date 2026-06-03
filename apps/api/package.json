@@ -48,6 +48,10 @@
     "./email": {
       "import": "./dist/services/email.js",
       "default": "./dist/services/email.js"
+    },
+    "./auth-tokens": {
+      "import": "./dist/services/auth-tokens.js",
+      "default": "./dist/services/auth-tokens.js"
     }
   },
   "scripts": {

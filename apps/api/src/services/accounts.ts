@@ -10,7 +10,11 @@ import { and, count, desc, eq, gte, isNull, sql } from 'drizzle-orm';
 import { generateSessionToken, sha256Hex } from '../lib/crypto.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { HttpProblem } from '../lib/problem.js';
+import { consumeAuthToken, createAuthToken } from './auth-tokens.js';
 import { type MintedKey, mintApiKey } from './keys.js';
+
+const VERIFY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -22,6 +26,7 @@ export interface RequestMeta {
 export interface SessionResult {
   token: string;
   expiresAt: Date;
+  userId: string;
 }
 
 function invalidCredentials(): never {
@@ -47,7 +52,7 @@ async function createSession(
     userAgent: meta.ua,
     expiresAt,
   });
-  return { token, expiresAt };
+  return { token, expiresAt, userId };
 }
 
 export async function signUp(
@@ -132,6 +137,59 @@ export async function getSessionUser(db: Database, token: string): Promise<Sessi
     return null;
   }
   return { id: row.id, email: row.email, name: row.name };
+}
+
+/** Mint a verify-email token for a user (the caller emails the link). */
+export function createEmailVerifyToken(db: Database, userId: string): Promise<{ token: string }> {
+  return createAuthToken(db, userId, 'verify_email', VERIFY_TTL_MS);
+}
+
+/** Consume a verify-email token and mark the account verified. */
+export async function verifyEmail(db: Database, token: string): Promise<boolean> {
+  const userId = await consumeAuthToken(db, 'verify_email', token);
+  if (!userId) return false;
+  await db.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, userId));
+  return true;
+}
+
+/**
+ * Issue a password-reset token for a known email (the caller emails the link).
+ * Returns null for unknown emails so the endpoint reveals nothing (no
+ * enumeration). Only users with a password (dashboard accounts) get a token.
+ */
+export async function requestPasswordReset(
+  db: Database,
+  email: string,
+): Promise<{ token: string } | null> {
+  const normalized = email.trim().toLowerCase();
+  const rows = await db
+    .select({ id: users.id, passwordHash: users.passwordHash })
+    .from(users)
+    .where(sql`lower(${users.email}) = ${normalized}`)
+    .limit(1);
+  const user = rows[0];
+  if (!user?.passwordHash) return null;
+  return createAuthToken(db, user.id, 'password_reset', RESET_TTL_MS);
+}
+
+/**
+ * Consume a reset token, set the new password, and revoke all of the user's
+ * sessions (so a leaked session can't outlive a reset). Returns false on a bad
+ * or used token.
+ */
+export async function resetPassword(
+  db: Database,
+  token: string,
+  newPassword: string,
+): Promise<boolean> {
+  const userId = await consumeAuthToken(db, 'password_reset', token);
+  if (!userId) return false;
+  const passwordHash = await hashPassword(newPassword);
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ passwordHash }).where(eq(users.id, userId));
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
+  });
+  return true;
 }
 
 export interface ApiKeySummary {

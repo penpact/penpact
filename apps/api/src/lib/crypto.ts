@@ -50,3 +50,8 @@ export function generateSessionToken(): string {
 export function generateWebhookSecret(): string {
   return `whsec_${base62(40)}`;
 }
+
+/** Opaque single-use token for email links (verification, password reset). */
+export function generateAuthToken(): string {
+  return base62(40);
+}
