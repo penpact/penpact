@@ -56,6 +56,9 @@ export const FIELD_TYPES = [
   'email',
   'text',
   'checkbox',
+  'dropdown',
+  'radio',
+  'stamp',
 ] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 

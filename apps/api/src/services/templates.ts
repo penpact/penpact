@@ -52,6 +52,7 @@ export interface TemplateFieldResponse {
   width: number;
   height: number;
   required: boolean;
+  options: string[] | null;
 }
 export interface TemplateResponse {
   id: string;
@@ -128,6 +129,7 @@ function toResponse(
       width: f.width,
       height: f.height,
       required: f.required,
+      options: f.options ?? null,
     })),
     createdAt: tpl.createdAt.toISOString(),
   };
@@ -234,6 +236,7 @@ export async function placeTemplateFields(
         width: f.width,
         height: f.height,
         required: f.required ?? true,
+        options: f.options ?? null,
       })),
     )
     .returning();
@@ -247,6 +250,7 @@ export async function placeTemplateFields(
     width: f.width,
     height: f.height,
     required: f.required,
+    options: f.options ?? null,
   }));
 }
 
@@ -356,6 +360,7 @@ export async function instantiateTemplate(
           width: f.width,
           height: f.height,
           required: f.required,
+          options: f.options ?? null,
         })),
       );
     }

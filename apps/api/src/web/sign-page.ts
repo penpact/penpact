@@ -235,7 +235,7 @@ function renderSign(){
         '<button type="button" class="btn-ghost" id="clearCanvas" style="margin-top:6px">Clear</button>' +
       '</div></div>';
 
-  const extra = myFields.filter(f => !["signature","initials","name"].includes(f.type));
+  const extra = myFields.filter(f => !["signature","stamp","initials","name"].includes(f.type));
   for (const f of extra) {
     const id = "f_" + f.id;
     if (f.type === "date") {
@@ -244,6 +244,12 @@ function renderSign(){
       html += fieldWrap(id, "Email", '<input type="email" id="'+id+'" value="'+esc(session.signer.email||"")+'">');
     } else if (f.type === "checkbox") {
       html += '<div class="field"><label class="check"><input type="checkbox" id="'+id+'"' + (f.required?" required":"") + '> I agree</label></div>';
+    } else if (f.type === "dropdown") {
+      const opts = '<option value="">Select…</option>' + (f.options||[]).map(function(o){return '<option value="'+esc(o)+'">'+esc(o)+'</option>';}).join("");
+      html += fieldWrap(id, "Choose" + (f.required?" (required)":""), '<select id="'+id+'">'+opts+'</select>');
+    } else if (f.type === "radio") {
+      const radios = (f.options||[]).map(function(o,i){return '<label class="check" style="margin-right:12px"><input type="radio" name="'+id+'" value="'+esc(o)+'"> '+esc(o)+'</label>';}).join("");
+      html += '<div class="field"><label>Choose'+(f.required?" (required)":"")+'</label><div id="'+id+'">'+radios+'</div></div>';
     } else {
       html += fieldWrap(id, "Text" + (f.required?" (required)":""), '<input type="text" id="'+id+'">');
     }
@@ -311,10 +317,13 @@ async function submitSign(myFields){
   const values = [];
   for (const f of myFields) {
     let v = "";
-    if (f.type === "signature") v = signatureValue || fullName;
+    if (f.type === "signature" || f.type === "stamp") v = signatureValue || fullName;
     else if (f.type === "name") v = fullName;
     else if (f.type === "initials") v = initials;
-    else {
+    else if (f.type === "radio") {
+      const checked = document.querySelector('input[name="f_' + f.id + '"]:checked');
+      v = checked ? checked.value : "";
+    } else {
       const el = document.getElementById("f_" + f.id);
       if (!el) continue;
       v = f.type === "checkbox" ? (el.checked ? "Yes" : "") : el.value.trim();

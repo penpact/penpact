@@ -56,6 +56,8 @@ export const fieldCreateSchema = z.object({
   width: z.number().positive(),
   height: z.number().positive(),
   required: z.boolean().optional(),
+  /** Choices for dropdown/radio fields. */
+  options: z.array(z.string().min(1).max(200)).min(1).max(50).optional(),
 });
 
 export const placeFieldsSchema = z.object({
@@ -113,6 +115,7 @@ export const placeTemplateFieldsSchema = z.object({
         width: z.number().positive(),
         height: z.number().positive(),
         required: z.boolean().optional(),
+        options: z.array(z.string().min(1).max(200)).min(1).max(50).optional(),
       }),
     )
     .min(1),

@@ -82,6 +82,7 @@ export async function placeFields(
         width: field.width,
         height: field.height,
         required: field.required ?? true,
+        options: field.options ?? null,
       })),
     )
     .returning();

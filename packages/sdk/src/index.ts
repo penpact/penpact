@@ -37,6 +37,8 @@ export interface Field {
   required: boolean;
   aiDetected: boolean;
   value: string | null;
+  /** Choices for dropdown/radio fields. */
+  options: string[] | null;
 }
 
 export interface Envelope {
@@ -87,6 +89,8 @@ export interface FieldInput {
   width: number;
   height: number;
   required?: boolean;
+  /** Choices for dropdown/radio fields. */
+  options?: string[];
 }
 
 export interface ListEnvelopesParams {
@@ -125,6 +129,7 @@ export interface TemplateField {
   width: number;
   height: number;
   required: boolean;
+  options: string[] | null;
 }
 export interface Template {
   id: string;
@@ -150,6 +155,7 @@ export interface TemplateFieldInput {
   width: number;
   height: number;
   required?: boolean;
+  options?: string[];
 }
 export interface InstantiateTemplateInput {
   signers: Array<{ roleId: string; name: string; email: string }>;

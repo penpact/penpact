@@ -41,6 +41,7 @@ export interface FieldResponse {
   required: boolean;
   aiDetected: boolean;
   value: string | null;
+  options: string[] | null;
 }
 
 export interface EnvelopeResponse {
@@ -87,6 +88,7 @@ export function toFieldResponse(row: FieldRow): FieldResponse {
     required: row.required,
     aiDetected: row.aiDetected,
     value: row.value,
+    options: row.options ?? null,
   };
 }
 

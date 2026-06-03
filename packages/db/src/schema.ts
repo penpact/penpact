@@ -317,6 +317,8 @@ export const fields = pgTable(
     width: doublePrecision('width').notNull(),
     height: doublePrecision('height').notNull(),
     required: boolean('required').notNull().default(true),
+    /** Choices for dropdown/radio fields. */
+    options: jsonb('options').$type<string[]>(),
     value: text('value'),
     aiDetected: boolean('ai_detected').notNull().default(false),
     completedAt: timestamp('completed_at', { withTimezone: true }),
@@ -391,6 +393,7 @@ export const templateFields = pgTable(
     width: doublePrecision('width').notNull(),
     height: doublePrecision('height').notNull(),
     required: boolean('required').notNull().default(true),
+    options: jsonb('options').$type<string[]>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

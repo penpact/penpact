@@ -130,7 +130,9 @@ export function Sign(props: SignProps): JSX.Element {
   const myFields: SignerField[] = session
     ? session.fields.filter((f) => f.signerId === session.signer.id)
     : [];
-  const extraFields = myFields.filter((f) => !['signature', 'name', 'initials'].includes(f.type));
+  const extraFields = myFields.filter(
+    (f) => !['signature', 'stamp', 'name', 'initials'].includes(f.type),
+  );
 
   async function continueFromConsent(): Promise<void> {
     if (!session?.consentDisclosure) return;
@@ -359,16 +361,64 @@ export function Sign(props: SignProps): JSX.Element {
             </div>
           )}
 
-          {extraFields.map((f) => (
-            <label key={f.id}>
-              {f.type}
-              <input
-                type={f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text'}
-                value={inputs[f.id] ?? ''}
-                onChange={(e) => setInputs((prev) => ({ ...prev, [f.id]: e.target.value }))}
-              />
-            </label>
-          ))}
+          {extraFields.map((f) => {
+            const set = (v: string) => setInputs((prev) => ({ ...prev, [f.id]: v }));
+            if (f.type === 'dropdown') {
+              return (
+                <label key={f.id}>
+                  {f.type}
+                  <select value={inputs[f.id] ?? ''} onChange={(e) => set(e.target.value)}>
+                    <option value="">Select…</option>
+                    {(f.options ?? []).map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              );
+            }
+            if (f.type === 'radio') {
+              return (
+                <fieldset key={f.id} style={{ border: 0, padding: 0 }}>
+                  <legend>{f.type}</legend>
+                  {(f.options ?? []).map((opt) => (
+                    <label key={opt} style={{ display: 'inline-flex', gap: 4, marginRight: 12 }}>
+                      <input
+                        type="radio"
+                        name={f.id}
+                        checked={inputs[f.id] === opt}
+                        onChange={() => set(opt)}
+                      />
+                      {opt}
+                    </label>
+                  ))}
+                </fieldset>
+              );
+            }
+            if (f.type === 'checkbox') {
+              return (
+                <label key={f.id} style={{ display: 'inline-flex', gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={inputs[f.id] === 'x'}
+                    onChange={(e) => set(e.target.checked ? 'x' : '')}
+                  />
+                  {f.type}
+                </label>
+              );
+            }
+            return (
+              <label key={f.id}>
+                {f.type}
+                <input
+                  type={f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text'}
+                  value={inputs[f.id] ?? ''}
+                  onChange={(e) => set(e.target.value)}
+                />
+              </label>
+            );
+          })}
 
           <button type="button" disabled={busy} onClick={sign}>
             {busy ? 'Signing…' : 'Sign document'}
