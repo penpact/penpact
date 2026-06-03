@@ -90,6 +90,19 @@ export function buildVerifyEmail(input: { to: string; verifyUrl: string }): Emai
   };
 }
 
+export function buildOtpEmail(input: { to: string; name: string; code: string }): EmailMessage {
+  const name = escapeHtml(input.name);
+  const code = escapeHtml(input.code);
+  return {
+    to: input.to,
+    subject: `Your signing verification code: ${input.code}`,
+    html: `<p>Hi ${name},</p>
+<p>Use this one-time code to verify your identity and continue signing:</p>
+<p style="font-size:24px;font-weight:700;letter-spacing:3px">${code}</p>
+<p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>`,
+  };
+}
+
 export function buildResetEmail(input: { to: string; resetUrl: string }): EmailMessage {
   const url = escapeHtml(input.resetUrl);
   return {

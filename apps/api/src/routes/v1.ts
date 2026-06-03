@@ -9,6 +9,7 @@ import { validateJson, validateQuery } from '../lib/validate.js';
 import { apiKeyAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import {
+  authenticateSchema,
   completeSchema,
   consentSchema,
   declineSchema,
@@ -35,6 +36,7 @@ import {
 import { placeFields } from '../services/fields.js';
 import {
   acceptConsent,
+  authenticateSigner,
   completeSigning,
   declineSigning,
   getSignerDocument,
@@ -199,6 +201,11 @@ signRoute.get('/:token/document', async (c) => {
     c.req.query('documentId'),
   );
   return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
+});
+
+signRoute.post('/:token/authenticate', validateJson(authenticateSchema), async (c) => {
+  await authenticateSigner(c.get('db'), c.req.param('token'), c.req.valid('json').code, reqCtx(c));
+  return c.body(null, 204);
 });
 
 signRoute.post('/:token/consent', validateJson(consentSchema), async (c) => {

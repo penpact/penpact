@@ -57,6 +57,13 @@
       "when": 1781000000000,
       "tag": "0007_document_position",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781100000000,
+      "tag": "0008_signer_auth",
+      "breakpoints": true
     }
   ]
 }

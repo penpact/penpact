@@ -34,7 +34,13 @@ export type SignerStatus = (typeof SIGNER_STATUSES)[number];
  * Attribution tier — how the signer was authenticated.
  * email_link/access_code = free; sms_otp/id_verification = premium (outsourced).
  */
-export const AUTH_METHODS = ['email_link', 'access_code', 'sms_otp', 'id_verification'] as const;
+export const AUTH_METHODS = [
+  'email_link',
+  'access_code',
+  'email_otp',
+  'sms_otp',
+  'id_verification',
+] as const;
 export type AuthMethod = (typeof AUTH_METHODS)[number];
 
 /** How the signature mark itself was produced. */

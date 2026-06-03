@@ -4,6 +4,7 @@ import {
   type ControllerDeps,
   documentUrl,
   loadSession,
+  postAuthenticate,
   postComplete,
   postConsent,
   postDecline,
@@ -23,7 +24,16 @@ export interface SignProps {
   className?: string;
 }
 
-type Phase = 'loading' | 'gone' | 'notfound' | 'error' | 'consent' | 'sign' | 'done' | 'declined';
+type Phase =
+  | 'loading'
+  | 'gone'
+  | 'notfound'
+  | 'error'
+  | 'auth'
+  | 'consent'
+  | 'sign'
+  | 'done'
+  | 'declined';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -80,12 +90,42 @@ export function Sign(props: SignProps): JSX.Element {
         if (f.type === 'email') seed[f.id] = s.signer.email ?? '';
       }
       setInputs(seed);
-      setPhase(s.consentRequired ? 'consent' : 'sign');
+      setPhase(s.authRequired ? 'auth' : s.consentRequired ? 'consent' : 'sign');
     });
     return () => {
       alive = false;
     };
   }, [deps]);
+
+  const [authCode, setAuthCode] = useState('');
+
+  async function submitAuth(): Promise<void> {
+    const code = authCode.trim();
+    if (!code) {
+      setErr('Enter the code to continue.');
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    const res = await postAuthenticate(deps, code);
+    if (!res.ok) {
+      setBusy(false);
+      setErr('That code is incorrect or has expired.');
+      return;
+    }
+    // Re-load the now-unlocked session.
+    const r = await loadSession(deps);
+    setBusy(false);
+    setAuthCode('');
+    if (r.kind !== 'ok') {
+      setErr('Could not load the document. Please refresh.');
+      return;
+    }
+    const s = r.session;
+    setSession(s);
+    setFullName(s.signer.name ?? '');
+    setPhase(s.consentRequired ? 'consent' : 'sign');
+  }
 
   const myFields: SignerField[] = session
     ? session.fields.filter((f) => f.signerId === session.signer.id)
@@ -163,6 +203,37 @@ export function Sign(props: SignProps): JSX.Element {
   if (phase === 'done')
     return <div className={cls}>You're all set. This document has been signed.</div>;
   if (phase === 'declined') return <div className={cls}>You declined to sign.</div>;
+
+  if (phase === 'auth') {
+    const isOtp = session?.authRequired === 'email_otp';
+    return (
+      <div className={cls}>
+        <h3>Verify your identity</h3>
+        <p>
+          {isOtp
+            ? `We emailed a one-time code to ${session?.signer.email ?? 'your address'}. Enter it to continue.`
+            : 'This document is protected. Enter the access code the sender gave you.'}
+        </p>
+        <input
+          type="text"
+          inputMode={isOtp ? 'numeric' : 'text'}
+          value={authCode}
+          placeholder={isOtp ? '6-digit code' : 'Access code'}
+          onChange={(e) => setAuthCode(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submitAuth();
+          }}
+          style={{ padding: 8, fontSize: 16, width: '100%', maxWidth: 280 }}
+        />
+        {err ? <div style={{ color: '#c0392b', marginTop: 8 }}>{err}</div> : null}
+        <div style={{ marginTop: 12 }}>
+          <button type="button" onClick={submitAuth} disabled={busy}>
+            {busy ? 'Verifying…' : 'Verify'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const docList =
     session?.documents && session.documents.length > 0

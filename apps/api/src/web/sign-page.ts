@@ -133,6 +133,11 @@ function showState(kind, big, sub){
 
 function render(){
   $("docName").textContent = session.documentName || "Document";
+  if (session.authRequired){
+    $("viewer").innerHTML = '<div style="color:#9aa3b2;padding:40px;text-align:center">Verify your identity to view this document.</div>';
+    renderAuth();
+    return;
+  }
   const docs = (session.documents && session.documents.length)
     ? session.documents
     : [{ documentUrl: api("/document") }];
@@ -140,6 +145,33 @@ function render(){
     '<iframe class="docframe" title="Document ' + (i + 1) + '" src="' + esc(d.documentUrl) + '#toolbar=1&view=FitH"></iframe>'
   ).join("");
   if (session.consentRequired) renderConsent(); else renderSign();
+}
+
+function renderAuth(){
+  const isOtp = session.authRequired === "email_otp";
+  const where = (session.signer && session.signer.email) ? esc(session.signer.email) : "your address";
+  $("panel").innerHTML =
+    '<h2>Verify your identity</h2>' +
+    '<p class="lead">' + (isOtp
+      ? 'We emailed a one-time code to ' + where + '. Enter it to continue.'
+      : 'This document is protected. Enter the access code the sender gave you.') + '</p>' +
+    '<input id="authCode" type="text" inputmode="' + (isOtp ? 'numeric' : 'text') + '" placeholder="' + (isOtp ? '6-digit code' : 'Access code') + '" autocomplete="one-time-code">' +
+    '<div class="err" id="authErr"></div>' +
+    '<button class="btn-primary" id="authBtn" style="margin-top:12px">Verify</button>';
+  $("authCode").addEventListener("keydown", (e)=>{ if(e.key==="Enter") submitAuth(); });
+  $("authBtn").onclick = submitAuth;
+}
+
+async function submitAuth(){
+  const code = ($("authCode").value || "").trim();
+  const err = $("authErr"); err.textContent = "";
+  if(!code){ err.textContent = "Enter the code to continue."; return; }
+  const btn = $("authBtn"); btn.disabled = true;
+  try {
+    const res = await fetch(api("/authenticate"), { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ code }) });
+    if(!res.ok){ err.textContent = "That code is incorrect or has expired."; btn.disabled = false; return; }
+    await load();
+  } catch(e){ err.textContent = "Network error. Try again."; btn.disabled = false; }
 }
 
 function renderConsent(){

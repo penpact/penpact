@@ -6,6 +6,12 @@ export const signerCreateSchema = z.object({
   email: z.string().email(),
   routingOrder: z.number().int().min(1).optional(),
   authMethod: z.enum(AUTH_METHODS).optional(),
+  /** Required when authMethod is 'access_code' — the shared secret the signer must enter. */
+  accessCode: z.string().min(4).max(64).optional(),
+});
+
+export const authenticateSchema = z.object({
+  code: z.string().min(1).max(64),
 });
 
 export const envelopeCreateSchema = z.object({

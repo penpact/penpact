@@ -257,6 +257,12 @@ export const signers = pgTable(
     authMethod: authMethod('auth_method').notNull().default('email_link'),
     /** Hash of an optional access code (never store raw). */
     accessCodeHash: text('access_code_hash'),
+    /** Set once a step-up auth challenge (access code / OTP) has been passed. */
+    authPassedAt: timestamp('auth_passed_at', { withTimezone: true }),
+    /** Hash of the current one-time passcode (email/SMS OTP), never raw. */
+    otpHash: text('otp_hash'),
+    otpExpiresAt: timestamp('otp_expires_at', { withTimezone: true }),
+    otpAttempts: integer('otp_attempts').notNull().default(0),
     /** Opaque unguessable token used to build the signing link. */
     signingToken: text('signing_token').notNull(),
     consentGiven: boolean('consent_given').notNull().default(false),

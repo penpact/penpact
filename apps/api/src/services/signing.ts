@@ -1,10 +1,12 @@
+import { randomInt } from 'node:crypto';
 import { type Database, documents, envelopes, fields, signers } from '@penpact/db';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { CONSENT_DISCLOSURE } from '../consent.js';
+import { sha256Hex } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { CompleteInput, DeclineInput } from '../schemas.js';
 import type { Storage } from '../storage/index.js';
-import { sendSigningInvite } from './email.js';
+import { buildOtpEmail, sendEmail, sendSigningInvite } from './email.js';
 import {
   type FieldResponse,
   type RequestContext,
@@ -30,6 +32,8 @@ export interface SigningSession {
   fields: FieldResponse[];
   consentRequired: boolean;
   consentDisclosure: { version: string; text: string; hash: string } | null;
+  /** When set, the signer must pass this challenge before the document is shown. */
+  authRequired?: StepUpMethod;
 }
 
 const CLOSED_ENVELOPE_STATUSES = new Set(['completed', 'voided', 'expired', 'declined']);
@@ -99,6 +103,109 @@ function gone(): never {
   });
 }
 
+// ─── step-up signer authentication (access code / email OTP) ───
+const STEP_UP_METHODS = new Set<string>(['access_code', 'email_otp']);
+const OTP_TTL_MS = 10 * 60_000;
+const MAX_OTP_ATTEMPTS = 5;
+
+type StepUpMethod = 'access_code' | 'email_otp';
+
+function stepUpMethod(signer: SignerRow): StepUpMethod | null {
+  return STEP_UP_METHODS.has(signer.authMethod) ? (signer.authMethod as StepUpMethod) : null;
+}
+
+/** Block document access / signing until the step-up challenge has been passed. */
+function requireAuthPassed(signer: SignerRow): void {
+  if (stepUpMethod(signer) && !signer.authPassedAt) {
+    throw new HttpProblem({
+      status: 401,
+      title: 'Unauthorized',
+      detail: 'Identity verification is required before continuing.',
+    });
+  }
+}
+
+function randomOtp(): string {
+  return String(randomInt(0, 1_000_000)).padStart(6, '0');
+}
+
+/** Issue a fresh email OTP if none is currently valid, and email it (best-effort). */
+async function ensureOtpIssued(db: Database, signer: SignerRow): Promise<void> {
+  if (signer.otpHash && signer.otpExpiresAt && signer.otpExpiresAt.getTime() > Date.now()) {
+    return;
+  }
+  const code = randomOtp();
+  await db
+    .update(signers)
+    .set({
+      otpHash: sha256Hex(code),
+      otpExpiresAt: new Date(Date.now() + OTP_TTL_MS),
+      otpAttempts: 0,
+    })
+    .where(eq(signers.id, signer.id));
+  await sendEmail(buildOtpEmail({ to: signer.email, name: signer.name, code }));
+}
+
+/**
+ * Verify a step-up challenge for the signer. Idempotent: a no-op if the signer
+ * needs no step-up or has already passed. Throws 401 on a wrong/expired code.
+ */
+export async function authenticateSigner(
+  db: Database,
+  token: string,
+  code: string,
+  ctx: RequestContext,
+): Promise<void> {
+  const { signer, envelope } = await loadByToken(db, token);
+  if (envelopeClosed(envelope)) {
+    gone();
+  }
+  const method = stepUpMethod(signer);
+  if (!method || signer.authPassedAt) {
+    return;
+  }
+
+  let ok = false;
+  if (method === 'access_code') {
+    ok = !!signer.accessCodeHash && sha256Hex(code) === signer.accessCodeHash;
+  } else {
+    const live =
+      !!signer.otpHash && !!signer.otpExpiresAt && signer.otpExpiresAt.getTime() > Date.now();
+    ok = live && signer.otpAttempts < MAX_OTP_ATTEMPTS && sha256Hex(code) === signer.otpHash;
+  }
+
+  if (!ok) {
+    if (method === 'email_otp') {
+      await db
+        .update(signers)
+        .set({ otpAttempts: signer.otpAttempts + 1 })
+        .where(eq(signers.id, signer.id));
+    }
+    throw new HttpProblem({
+      status: 401,
+      title: 'Unauthorized',
+      detail: 'That code is incorrect or has expired.',
+    });
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(signers)
+      .set({ authPassedAt: new Date(), otpHash: null, otpExpiresAt: null })
+      .where(eq(signers.id, signer.id));
+    await recordEvent(tx, {
+      envelopeId: envelope.id,
+      signerId: signer.id,
+      type: 'authentication_passed',
+      actor: 'signer',
+      actorId: signer.id,
+      ipAddress: ctx.ip,
+      userAgent: ctx.ua,
+      metadata: { method },
+    });
+  });
+}
+
 export async function getSigningSession(
   db: Database,
   token: string,
@@ -109,6 +216,25 @@ export async function getSigningSession(
     gone();
   }
   await requireSignerTurn(db, signer);
+
+  // Step-up auth gate: withhold the document until the challenge is passed.
+  const method = stepUpMethod(signer);
+  if (method && !signer.authPassedAt) {
+    if (method === 'email_otp') {
+      await ensureOtpIssued(db, signer);
+    }
+    return {
+      envelopeId: envelope.id,
+      documentName: envelope.documentName,
+      signer: toSignerResponse(signer),
+      documentUrl: '',
+      documents: [],
+      fields: [],
+      consentRequired: false,
+      consentDisclosure: null,
+      authRequired: method,
+    };
+  }
 
   let current = signer;
   if (!signer.viewedAt) {
@@ -190,6 +316,7 @@ export async function acceptConsent(
     });
   }
   await requireSignerTurn(db, signer);
+  requireAuthPassed(signer);
   if (disclosureHash !== CONSENT_DISCLOSURE.hash) {
     throw new HttpProblem({
       status: 422,
@@ -249,6 +376,7 @@ export async function completeSigning(
     });
   }
   await requireSignerTurn(db, signer);
+  requireAuthPassed(signer);
   if (!signer.consentGiven) {
     throw new HttpProblem({
       status: 422,
@@ -443,7 +571,8 @@ export async function getSignerDocument(
   token: string,
   documentId?: string,
 ): Promise<Uint8Array> {
-  const { envelope } = await loadByToken(db, token);
+  const { signer, envelope } = await loadByToken(db, token);
+  requireAuthPassed(signer);
   // A specific source document (multi-document), else the final-or-first source.
   const whereClause = documentId
     ? and(eq(documents.envelopeId, envelope.id), eq(documents.id, documentId))

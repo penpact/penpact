@@ -61,6 +61,8 @@ export interface SignerInput {
   email: string;
   routingOrder?: number;
   authMethod?: AuthMethod;
+  /** Shared secret the signer must enter when authMethod is 'access_code'. */
+  accessCode?: string;
 }
 
 export interface EnvelopeCreateInput {

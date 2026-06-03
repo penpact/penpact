@@ -1,6 +1,6 @@
 import { type Database, documents, envelopes, fields, signers, users } from '@penpact/db';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
-import { generateSigningToken } from '../lib/crypto.js';
+import { generateSigningToken, sha256Hex } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { EnvelopeCreateInput } from '../schemas.js';
 import { requireDraftEnvelope, requireEnvelope } from './access.js';
@@ -152,6 +152,7 @@ export async function createEnvelope(
           email: s.email,
           routingOrder: s.routingOrder ?? index + 1,
           authMethod: s.authMethod ?? ('email_link' as const),
+          accessCodeHash: s.accessCode ? sha256Hex(s.accessCode) : null,
           signingToken: generateSigningToken(),
         })),
       )

@@ -40,6 +40,8 @@ export interface SigningSessionData {
   fields: SignerField[];
   consentRequired: boolean;
   consentDisclosure: ConsentDisclosure | null;
+  /** When set, the signer must pass this challenge before the document is shown. */
+  authRequired?: 'access_code' | 'email_otp';
 }
 
 export interface ControllerDeps {
@@ -160,6 +162,11 @@ export function postConsent(
   disclosureHash: string,
 ): Promise<{ ok: boolean }> {
   return post(deps, '/consent', { disclosureHash, agree: true });
+}
+
+/** Submit a step-up auth code (access code or email OTP). */
+export function postAuthenticate(deps: ControllerDeps, code: string): Promise<{ ok: boolean }> {
+  return post(deps, '/authenticate', { code });
 }
 
 export function postComplete(deps: ControllerDeps, input: CompleteInput): Promise<{ ok: boolean }> {
