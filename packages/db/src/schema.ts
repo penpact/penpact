@@ -313,6 +313,70 @@ export const fields = pgTable(
   ],
 );
 
+// ─── templates (reusable document + roles + field placements) ───
+export const templates = pgTable(
+  'templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    documentName: text('document_name').notNull(),
+    storageKey: text('storage_key'),
+    contentHash: text('content_hash'),
+    pageCount: integer('page_count'),
+    byteSize: integer('byte_size'),
+    ...timestamps,
+  },
+  (t) => [index('templates_user_idx').on(t.userId)],
+);
+
+export const templateRoles = pgTable(
+  'template_roles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => templates.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    routingOrder: integer('routing_order').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('template_roles_template_idx').on(t.templateId),
+    check('template_roles_routing_chk', sql`${t.routingOrder} >= 1`),
+  ],
+);
+
+export const templateFields = pgTable(
+  'template_fields',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => templates.id, { onDelete: 'cascade' }),
+    roleId: uuid('role_id')
+      .notNull()
+      .references(() => templateRoles.id, { onDelete: 'cascade' }),
+    type: fieldType('type').notNull(),
+    page: integer('page').notNull().default(1),
+    x: doublePrecision('x').notNull(),
+    y: doublePrecision('y').notNull(),
+    width: doublePrecision('width').notNull(),
+    height: doublePrecision('height').notNull(),
+    required: boolean('required').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('template_fields_template_idx').on(t.templateId),
+    check(
+      'template_fields_geometry_chk',
+      sql`${t.page} >= 1 and ${t.x} >= 0 and ${t.y} >= 0 and ${t.width} > 0 and ${t.height} > 0`,
+    ),
+  ],
+);
+
 // ─── events (APPEND-ONLY audit trail — §8) ───
 export const events = pgTable(
   'events',
@@ -363,6 +427,23 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   webhookEndpoints: many(webhookEndpoints),
   authTokens: many(authTokens),
+  templates: many(templates),
+}));
+
+export const templatesRelations = relations(templates, ({ one, many }) => ({
+  user: one(users, { fields: [templates.userId], references: [users.id] }),
+  roles: many(templateRoles),
+  fields: many(templateFields),
+}));
+
+export const templateRolesRelations = relations(templateRoles, ({ one, many }) => ({
+  template: one(templates, { fields: [templateRoles.templateId], references: [templates.id] }),
+  fields: many(templateFields),
+}));
+
+export const templateFieldsRelations = relations(templateFields, ({ one }) => ({
+  template: one(templates, { fields: [templateFields.templateId], references: [templates.id] }),
+  role: one(templateRoles, { fields: [templateFields.roleId], references: [templateRoles.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
