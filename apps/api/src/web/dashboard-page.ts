@@ -194,6 +194,8 @@ async function renderApp(me, banner){
         '<div class="err" id="keyErr"></div>' +
       '</div>' +
       '<div class="card" id="keysCard"><p class="muted">Loading keys...</p></div>' +
+      '<h2>Envelopes</h2>' +
+      '<div class="card" id="envCard"><p class="muted">Loading envelopes…</p></div>' +
       '<h2>Use your key</h2>' +
       '<pre id="snippet"></pre>' +
     '</div>';
@@ -207,7 +209,27 @@ async function renderApp(me, banner){
     "  documentName: 'NDA',\\n" +
     "  signers: [{ name: 'Ada', email: 'ada@example.com' }],\\n" +
     "});";
-  await Promise.all([loadStats(), loadKeys()]);
+  await Promise.all([loadStats(), loadKeys(), loadEnvelopes()]);
+}
+
+async function loadEnvelopes(){
+  const res = await api('/envelopes'); const card = $('envCard');
+  if(!res.ok){ card.innerHTML='<p class="muted">Could not load envelopes.</p>'; return; }
+  const list = (await res.json()).data || [];
+  if(!list.length){ card.innerHTML='<p class="muted">No envelopes yet. Create one with your API key or the SDK.</p>'; return; }
+  const rows = list.map((e)=>{
+    const done = e.status === 'completed';
+    const dl = '<a href="/dashboard/envelopes/'+esc(e.id)+'/document" target="_blank" rel="noopener">'+(done?'Signed PDF':'Current PDF')+'</a>'+
+      (done ? ' · <a href="/dashboard/envelopes/'+esc(e.id)+'/certificate" target="_blank" rel="noopener">Certificate</a>' : '');
+    return '<tr>'+
+      '<td>'+esc(e.documentName)+'</td>'+
+      '<td><span class="pill">'+esc(e.status)+'</span></td>'+
+      '<td class="muted">'+fmtDate(e.createdAt)+'</td>'+
+      '<td class="muted">'+fmtDate(e.completedAt)+'</td>'+
+      '<td>'+dl+'</td>'+
+    '</tr>';
+  }).join('');
+  card.innerHTML = '<table><thead><tr><th>Document</th><th>Status</th><th>Created</th><th>Completed</th><th>Download</th></tr></thead><tbody>'+rows+'</tbody></table>';
 }
 
 async function loadStats(){

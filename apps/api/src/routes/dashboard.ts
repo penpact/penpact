@@ -30,13 +30,17 @@ import {
   signUp,
   verifyEmail,
 } from '../services/accounts.js';
+import { downloadCertificate } from '../services/certificate.js';
+import { downloadDocument } from '../services/documents.js';
 import { buildResetEmail, buildVerifyEmail, sendEmail } from '../services/email.js';
+import { type ListOptions, listEnvelopes } from '../services/envelopes.js';
 import {
   createEndpoint,
   deleteEndpoint,
   listDeliveries,
   listEndpoints,
 } from '../services/webhooks.js';
+import { getStorage } from '../storage/index.js';
 import type { AppEnv } from '../types.js';
 
 const reqMeta = (c: Context) => ({ ip: clientIp(c), ua: userAgent(c) });
@@ -149,6 +153,49 @@ api.delete('/api-keys/:id', async (c) => {
 
 api.get('/usage', async (c) => {
   return c.json(await getUsage(c.get('db'), c.get('userId')));
+});
+
+// ─── Envelopes (the account's own documents, by cookie session) ───
+api.get('/envelopes', async (c) => {
+  const limitParam = Number(c.req.query('limit'));
+  const options: ListOptions = {
+    limit: Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 50,
+  };
+  const status = c.req.query('status');
+  if (status) {
+    options.status = status as NonNullable<ListOptions['status']>;
+  }
+  const cursor = c.req.query('cursor');
+  if (cursor) {
+    options.cursor = cursor;
+  }
+  const result = await listEnvelopes(c.get('db'), c.get('userId'), options);
+  return c.json({
+    data: result.data,
+    pagination: { nextCursor: result.nextCursor, hasMore: result.hasMore },
+  });
+});
+
+// Owner-scoped download of the signed final PDF (or the source if not yet sealed).
+api.get('/envelopes/:id/document', async (c) => {
+  const bytes = await downloadDocument(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+  );
+  return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
+});
+
+// Owner-scoped download of the Certificate of Completion (404 until completed).
+api.get('/envelopes/:id/certificate', async (c) => {
+  const bytes = await downloadCertificate(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+  );
+  return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
 });
 
 // ─── Webhook endpoints + deliveries ───
