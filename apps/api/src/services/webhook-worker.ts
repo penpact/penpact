@@ -5,6 +5,7 @@
  * core `drainDueDeliveries` is unit-tested; this is the scheduler glue.
  */
 import { getDb } from '../db.js';
+import { logger } from '../lib/logger.js';
 import { drainDueDeliveries } from './webhooks.js';
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -13,7 +14,7 @@ export function startWebhookWorker(intervalMs = 15_000): void {
   if (timer) return;
   timer = setInterval(() => {
     void drainDueDeliveries(getDb()).catch((err) => {
-      console.error('webhook worker drain failed:', err);
+      logger.error('webhook worker drain failed', { err: String(err) });
     });
   }, intervalMs);
   // Do not keep the process alive solely for this timer.

@@ -56,6 +56,10 @@
     "./routing": {
       "import": "./dist/services/routing.js",
       "default": "./dist/services/routing.js"
+    },
+    "./logger": {
+      "import": "./dist/lib/logger.js",
+      "default": "./dist/lib/logger.js"
     }
   },
   "scripts": {

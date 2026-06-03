@@ -5,6 +5,8 @@
  * Send from the verified subdomain (send.penpact.dev) to protect root
  * reputation. `buildInviteEmail` is pure and unit-tested.
  */
+import { logger } from '../lib/logger.js';
+
 export interface SigningInvite {
   to: string;
   signerName: string;
@@ -44,16 +46,16 @@ export async function sendEmail(msg: EmailMessage): Promise<{ id: string } | nul
     });
     const body = (await res.json().catch(() => ({}))) as { id?: string };
     if (!res.ok) {
-      console.error('email send failed', res.status, body);
+      logger.error('email send failed', { status: res.status, body });
       return null;
     }
     if (body.id) {
-      console.log('email sent', body.id, '->', msg.to);
+      logger.info('email sent', { id: body.id, to: msg.to });
       return { id: body.id };
     }
     return null;
   } catch (err) {
-    console.error('email send error', err);
+    logger.error('email send error', { err: String(err) });
     return null;
   }
 }

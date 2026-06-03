@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
+import { logger as log } from './lib/logger.js';
 import { problemErrorHandler } from './lib/problem.js';
 import { dashboard } from './routes/dashboard.js';
 import { v1 } from './routes/v1.js';
@@ -40,7 +41,7 @@ app.get('/app', (c) => c.html(dashboardPageHtml()));
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT ?? 3000);
   serve({ fetch: app.fetch, port }, (info) => {
-    console.log(`Penpact API listening on http://localhost:${info.port}`);
+    log.info('Penpact API listening', { port: info.port });
   });
   // Drain the durable webhook queue on an interval.
   startWebhookWorker();

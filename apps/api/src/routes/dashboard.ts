@@ -1,6 +1,7 @@
 import { type Context, Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { getDb } from '../db.js';
+import { logger } from '../lib/logger.js';
 import { clientIp, userAgent } from '../lib/request.js';
 import { validateJson } from '../lib/validate.js';
 import { csrfProtect } from '../middleware/csrf.js';
@@ -71,7 +72,7 @@ authRoute.post('/signup', validateJson(credentialsSchema), async (c) => {
     const { token } = await createEmailVerifyToken(db, session.userId);
     await sendEmail(buildVerifyEmail({ to: email, verifyUrl: appUrl(`/app?verify=${token}`) }));
   } catch (err) {
-    console.error('verify email send failed', err);
+    logger.error('verify email send failed', { err: String(err) });
   }
   return c.json({ ok: true }, 201);
 });
