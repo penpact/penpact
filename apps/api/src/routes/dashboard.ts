@@ -6,18 +6,30 @@ import { validateJson } from '../lib/validate.js';
 import { csrfProtect } from '../middleware/csrf.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { SESSION_COOKIE, sessionAuth } from '../middleware/session.js';
-import { createKeySchema, createWebhookEndpointSchema, credentialsSchema } from '../schemas.js';
+import {
+  createKeySchema,
+  createWebhookEndpointSchema,
+  credentialsSchema,
+  requestResetSchema,
+  resetPasswordSchema,
+  tokenSchema,
+} from '../schemas.js';
 import {
   createApiKey,
+  createEmailVerifyToken,
   getSessionUser,
   getUsage,
   listApiKeys,
   logIn,
   logOut,
+  requestPasswordReset,
+  resetPassword,
   revokeApiKey,
   type SessionResult,
   signUp,
+  verifyEmail,
 } from '../services/accounts.js';
+import { buildResetEmail, buildVerifyEmail, sendEmail } from '../services/email.js';
 import {
   createEndpoint,
   deleteEndpoint,
@@ -28,6 +40,7 @@ import type { AppEnv } from '../types.js';
 
 const reqMeta = (c: Context) => ({ ip: clientIp(c), ua: userAgent(c) });
 const secure = process.env.NODE_ENV === 'production';
+const appUrl = (path: string) => `${process.env.PUBLIC_BASE_URL ?? ''}${path}`;
 
 function setSessionCookie(c: Context, session: SessionResult): void {
   setCookie(c, SESSION_COOKIE, session.token, {
@@ -50,9 +63,38 @@ authRoute.use('*', rateLimit({ windowMs: 15 * 60_000, max: 30 }));
 
 authRoute.post('/signup', validateJson(credentialsSchema), async (c) => {
   const { email, password } = c.req.valid('json');
-  const session = await signUp(getDb(), email, password, reqMeta(c));
+  const db = getDb();
+  const session = await signUp(db, email, password, reqMeta(c));
   setSessionCookie(c, session);
+  // Best-effort verification email (no-op if email is unconfigured).
+  try {
+    const { token } = await createEmailVerifyToken(db, session.userId);
+    await sendEmail(buildVerifyEmail({ to: email, verifyUrl: appUrl(`/app?verify=${token}`) }));
+  } catch (err) {
+    console.error('verify email send failed', err);
+  }
   return c.json({ ok: true }, 201);
+});
+
+authRoute.post('/verify-email', validateJson(tokenSchema), async (c) => {
+  const ok = await verifyEmail(getDb(), c.req.valid('json').token);
+  return ok ? c.json({ ok: true }) : c.json({ ok: false }, 400);
+});
+
+authRoute.post('/request-reset', validateJson(requestResetSchema), async (c) => {
+  const { email } = c.req.valid('json');
+  const result = await requestPasswordReset(getDb(), email);
+  if (result) {
+    await sendEmail(buildResetEmail({ to: email, resetUrl: appUrl(`/app?reset=${result.token}`) }));
+  }
+  // Always 200 — do not reveal whether the email exists.
+  return c.json({ ok: true });
+});
+
+authRoute.post('/reset-password', validateJson(resetPasswordSchema), async (c) => {
+  const { token, password } = c.req.valid('json');
+  const ok = await resetPassword(getDb(), token, password);
+  return ok ? c.json({ ok: true }) : c.json({ ok: false }, 400);
 });
 
 authRoute.post('/login', validateJson(credentialsSchema), async (c) => {
@@ -81,7 +123,11 @@ api.get('/me', async (c) => {
   // sessionAuth already validated; re-read for the full record.
   const token = getCookie(c, SESSION_COOKIE) ?? '';
   const user = await getSessionUser(c.get('db'), token);
-  return c.json({ email: user?.email, name: user?.name ?? null });
+  return c.json({
+    email: user?.email,
+    name: user?.name ?? null,
+    emailVerified: user?.emailVerified ?? false,
+  });
 });
 
 api.get('/api-keys', async (c) => {

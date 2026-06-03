@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { logIn, requestPasswordReset, resetPassword, signUp, verifyEmail } from '@penpact/api/accounts';
+import {
+  logIn,
+  requestPasswordReset,
+  resetPassword,
+  signUp,
+  verifyEmail,
+} from '@penpact/api/accounts';
 import { consumeAuthToken, createAuthToken } from '@penpact/api/auth-tokens';
 import { createDatabase, type Database, sessions, users } from '@penpact/db';
 import { eq } from 'drizzle-orm';
@@ -42,7 +48,12 @@ describe.skipIf(!url)('auth tokens + verify/reset (integration)', () => {
   });
 
   it('verifyEmail marks the account verified', async () => {
-    const session = await signUp(db, `verify-${randomUUID()}@penpact.test`, 'a-strong-pass-1', meta);
+    const session = await signUp(
+      db,
+      `verify-${randomUUID()}@penpact.test`,
+      'a-strong-pass-1',
+      meta,
+    );
     const { token } = await createAuthToken(db, session.userId, 'verify_email', 60_000);
     expect(await verifyEmail(db, token)).toBe(true);
     const row = await db

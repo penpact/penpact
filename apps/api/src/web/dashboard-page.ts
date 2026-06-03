@@ -66,27 +66,60 @@ const api = (p, opts) => fetch('/dashboard' + p, Object.assign({ headers: { 'con
 const $ = (id) => document.getElementById(id);
 function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
 function fmtDate(s){ if(!s) return '-'; const d=new Date(s); return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+function qp(){ return new URLSearchParams(location.search); }
+function clearQuery(){ history.replaceState({}, '', location.pathname); }
 
 async function boot(){
+  const p = qp();
+  if (p.get('reset')) { renderReset(p.get('reset')); return; }
+  let banner = '';
+  if (p.get('verify')) {
+    const r = await api('/auth/verify-email', { method:'POST', body: JSON.stringify({ token: p.get('verify') }) });
+    banner = r.ok ? 'Your email is verified.' : 'That verification link is invalid or expired.';
+    clearQuery();
+  }
   const me = await api('/me');
-  if (me.status === 200) { renderApp(await me.json()); }
-  else { renderAuth(); }
+  if (me.status === 200) { renderApp(await me.json(), banner); }
+  else { renderAuth(banner); }
+}
+
+function renderReset(token){
+  $('root').innerHTML =
+    '<div class="center"><h1>Set a new password</h1>' +
+      '<div class="card"><div class="row" style="flex-direction:column;align-items:stretch;gap:12px">' +
+        '<div><label for="newpw">New password</label><input id="newpw" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>' +
+        '<button class="btn-primary" id="resetBtn">Update password</button>' +
+        '<div class="err" id="rerr"></div>' +
+      '</div></div></div>';
+  $('resetBtn').onclick = async () => {
+    const pw = $('newpw').value; const err = $('rerr'); err.textContent='';
+    if (pw.length < 8){ err.textContent='Password must be at least 8 characters.'; return; }
+    $('resetBtn').disabled = true;
+    const r = await api('/auth/reset-password', { method:'POST', body: JSON.stringify({ token, password: pw }) });
+    if (r.ok) {
+      $('root').innerHTML = '<div class="center"><h1>Password updated</h1><p class="lead">Log in with your new password.</p><button class="btn-primary" id="toLogin">Go to login</button></div>';
+      $('toLogin').onclick = () => { location.assign('/app'); };
+    } else { err.textContent='That reset link is invalid or expired.'; $('resetBtn').disabled=false; }
+  };
 }
 
 // ── Auth ──
-function renderAuth(){
+function renderAuth(banner){
   let mode = 'login';
   const root = $('root');
+  const note = banner ? '<div class="secret" style="border-color:var(--ok)"><div class="muted" style="font-size:13px">'+esc(banner)+'</div></div>' : '';
   root.innerHTML =
     '<div class="center">' +
       '<h1>Penpact dashboard</h1>' +
       '<p class="lead">Sign in to manage your API keys.</p>' +
+      note +
       '<div class="card">' +
         '<div class="tabs"><button id="tabLogin" class="active">Log in</button><button id="tabSignup">Sign up</button></div>' +
         '<div class="row" style="flex-direction:column;align-items:stretch;gap:12px">' +
           '<div><label for="email">Email</label><input id="email" type="email" autocomplete="email"></div>' +
           '<div><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="At least 8 characters"></div>' +
           '<button class="btn-primary" id="submitBtn">Log in</button>' +
+          '<a href="#" id="forgot" class="muted" style="font-size:13px">Forgot password?</a>' +
           '<div class="err" id="err"></div>' +
         '</div>' +
       '</div>' +
@@ -103,6 +136,28 @@ function renderAuth(){
   $('tabSignup').onclick = () => setMode('signup');
   $('submitBtn').onclick = () => submitAuth(mode);
   $('password').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitAuth(mode); });
+  $('forgot').onclick = (e) => { e.preventDefault(); renderForgot(); };
+}
+
+function renderForgot(){
+  $('root').innerHTML =
+    '<div class="center"><h1>Reset your password</h1>' +
+      '<p class="lead">We will email you a reset link if the address has an account.</p>' +
+      '<div class="card"><div class="row" style="flex-direction:column;align-items:stretch;gap:12px">' +
+        '<div><label for="remail">Email</label><input id="remail" type="email" autocomplete="email"></div>' +
+        '<button class="btn-primary" id="reqBtn">Send reset link</button>' +
+        '<a href="#" id="backLogin" class="muted" style="font-size:13px">Back to login</a>' +
+        '<div class="err" id="rerr"></div>' +
+      '</div></div></div>';
+  $('backLogin').onclick = (e) => { e.preventDefault(); renderAuth(''); };
+  $('reqBtn').onclick = async () => {
+    const email = $('remail').value.trim(); const err = $('rerr'); err.textContent='';
+    if (!email) { err.textContent='Enter your email.'; return; }
+    $('reqBtn').disabled = true;
+    await api('/auth/request-reset', { method:'POST', body: JSON.stringify({ email }) });
+    $('root').innerHTML = '<div class="center"><h1>Check your email</h1><p class="lead">If an account exists for '+esc(email)+', a password reset link is on its way.</p><button class="btn-primary" id="toLogin">Back to login</button></div>';
+    $('toLogin').onclick = () => renderAuth('');
+  };
 }
 
 async function submitAuth(mode){
@@ -120,12 +175,16 @@ async function submitAuth(mode){
 }
 
 // ── App ──
-async function renderApp(me){
+async function renderApp(me, banner){
   const root = $('root');
+  let notice = '';
+  if (banner) notice += '<div class="card" style="border-color:var(--ok)"><span class="muted">'+esc(banner)+'</span></div>';
+  if (me && me.emailVerified === false) notice += '<div class="card" style="border-color:var(--brand)"><span class="muted">Please verify your email. We sent a link to '+esc(me.email)+'.</span></div>';
   root.innerHTML =
     '<header class="top"><div class="logo">Pen<span>pact</span> dashboard</div>' +
       '<div class="right"><span>'+esc(me.email)+'</span><a href="#" id="logout">Log out</a></div></header>' +
     '<div class="wrap">' +
+      notice +
       '<div id="stats" class="stats"></div>' +
       '<h2>API keys</h2>' +
       '<div class="card">' +

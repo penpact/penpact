@@ -119,12 +119,19 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string | null;
+  emailVerified: boolean;
 }
 
 /** Resolve the user for a session token, or null if missing/expired. */
 export async function getSessionUser(db: Database, token: string): Promise<SessionUser | null> {
   const rows = await db
-    .select({ id: users.id, email: users.email, name: users.name, expiresAt: sessions.expiresAt })
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      emailVerifiedAt: users.emailVerifiedAt,
+      expiresAt: sessions.expiresAt,
+    })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
     .where(eq(sessions.tokenHash, sha256Hex(token)))
@@ -136,7 +143,12 @@ export async function getSessionUser(db: Database, token: string): Promise<Sessi
     await db.delete(sessions).where(eq(sessions.tokenHash, sha256Hex(token)));
     return null;
   }
-  return { id: row.id, email: row.email, name: row.name };
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    emailVerified: row.emailVerifiedAt !== null,
+  };
 }
 
 /** Mint a verify-email token for a user (the caller emails the link). */
