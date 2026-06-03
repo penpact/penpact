@@ -81,6 +81,17 @@ export interface EnvelopeCreateInput {
   locale?: 'en' | 'es' | 'fr' | 'de';
 }
 
+export interface GenerateDocumentInput {
+  documentName: string;
+  /** Markdown-ish template; `# heading`, `## subheading`, `- bullet`, {{vars}}. */
+  template: string;
+  variables?: Record<string, string>;
+  signers: SignerInput[];
+  expiresAt?: string;
+  locale?: 'en' | 'es' | 'fr' | 'de';
+  reminderEveryHours?: number;
+}
+
 export interface FieldInput {
   type: FieldType;
   signerId: string;
@@ -216,6 +227,11 @@ export class PenpactClient {
 
   async createEnvelope(input: EnvelopeCreateInput): Promise<Envelope> {
     return this.#json<Envelope>('POST', '/v1/envelopes', input);
+  }
+
+  /** Generate an envelope from a markdown-ish template with {{variable}} merge. */
+  async generateDocument(input: GenerateDocumentInput): Promise<Envelope> {
+    return this.#json<Envelope>('POST', '/v1/envelopes/generate', input);
   }
 
   async getEnvelope(id: string): Promise<Envelope> {

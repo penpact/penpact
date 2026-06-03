@@ -20,6 +20,17 @@ export const publicStartSchema = z.object({
   email: z.string().email(),
 });
 
+export const generateDocumentSchema = z.object({
+  documentName: z.string().min(1).max(255),
+  template: z.string().min(1).max(200_000),
+  variables: z.record(z.string()).optional(),
+  signers: z.array(signerCreateSchema).min(1),
+  expiresAt: z.string().datetime().optional(),
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
+  reminderEveryHours: z.number().int().min(1).max(8760).optional(),
+});
+export type GenerateDocumentInput = z.infer<typeof generateDocumentSchema>;
+
 export const bulkSendSchema = z.object({
   recipients: z
     .array(z.object({ name: z.string().min(1).max(120), email: z.string().email() }))

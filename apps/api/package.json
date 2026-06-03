@@ -80,6 +80,10 @@
     "./i18n": {
       "import": "./dist/lib/i18n.js",
       "default": "./dist/lib/i18n.js"
+    },
+    "./document-template": {
+      "import": "./dist/lib/document-template.js",
+      "default": "./dist/lib/document-template.js"
     }
   },
   "scripts": {

@@ -17,6 +17,7 @@ import {
   consentSchema,
   declineSchema,
   envelopeCreateSchema,
+  generateDocumentSchema,
   instantiateTemplateSchema,
   placeFieldsSchema,
   placeTemplateFieldsSchema,
@@ -38,6 +39,7 @@ import {
   voidEnvelope,
 } from '../services/envelopes.js';
 import { placeFields } from '../services/fields.js';
+import { generateEnvelopeFromText } from '../services/generate.js';
 import {
   acceptConsent,
   authenticateSigner,
@@ -82,6 +84,18 @@ envelopesRoute.post('/', validateJson(envelopeCreateSchema), async (c) => {
     c.get('userId'),
     c.req.valid('json'),
     c.get('mode'),
+  );
+  return c.json(envelope, 201);
+});
+
+// Generate an envelope from a text/markdown template with {{variable}} merge.
+envelopesRoute.post('/generate', validateJson(generateDocumentSchema), async (c) => {
+  const envelope = await generateEnvelopeFromText(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.get('mode'),
+    c.req.valid('json'),
   );
   return c.json(envelope, 201);
 });
