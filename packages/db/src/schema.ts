@@ -343,9 +343,15 @@ export const templates = pgTable(
     contentHash: text('content_hash'),
     pageCount: integer('page_count'),
     byteSize: integer('byte_size'),
+    /** When public, anyone with the slug can self-serve a fresh envelope. */
+    isPublic: boolean('is_public').notNull().default(false),
+    publicSlug: text('public_slug'),
     ...timestamps,
   },
-  (t) => [index('templates_user_idx').on(t.userId)],
+  (t) => [
+    index('templates_user_idx').on(t.userId),
+    uniqueIndex('templates_public_slug_uq').on(t.publicSlug),
+  ],
 );
 
 export const templateRoles = pgTable(

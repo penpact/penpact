@@ -14,6 +14,11 @@ export const authenticateSchema = z.object({
   code: z.string().min(1).max(64),
 });
 
+export const publicStartSchema = z.object({
+  name: z.string().min(1).max(120),
+  email: z.string().email(),
+});
+
 export const brandingSchema = z.object({
   brandName: z.string().min(1).max(80).optional(),
   brandColor: z

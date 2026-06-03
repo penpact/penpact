@@ -284,6 +284,15 @@ export class PenpactClient {
     return this.#json<Envelope>('POST', `/v1/templates/${encodeURIComponent(id)}/envelopes`, input);
   }
 
+  /** Publish a single-role template as a public, self-serve signing link. */
+  async publishTemplate(id: string): Promise<{ slug: string; publicUrl: string }> {
+    return this.#json('POST', `/v1/templates/${encodeURIComponent(id)}/publish`);
+  }
+
+  async unpublishTemplate(id: string): Promise<void> {
+    await this.#request('DELETE', `/v1/templates/${encodeURIComponent(id)}/publish`);
+  }
+
   // ─── internals ───
 
   async #request(method: string, path: string, body?: unknown): Promise<Response> {

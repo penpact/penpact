@@ -4,6 +4,8 @@
  * draft envelope and maps each role to a real signer, so the normal send /
  * sign / seal / certificate flow is unchanged.
  */
+
+import { randomUUID } from 'node:crypto';
 import {
   type Database,
   documents,
@@ -25,7 +27,12 @@ import type {
   TemplateCreateInput,
 } from '../schemas.js';
 import type { Storage } from '../storage/index.js';
-import { type EnvelopeResponse, getEnvelope } from './envelopes.js';
+import {
+  type EnvelopeResponse,
+  getEnvelope,
+  type RequestContext,
+  sendEnvelope,
+} from './envelopes.js';
 import { recordEvent } from './events.js';
 
 type FieldType = (typeof templateFields.$inferSelect)['type'];
@@ -365,4 +372,107 @@ export async function instantiateTemplate(
     if (!result) throw new Error('Envelope vanished after instantiation');
     return result;
   });
+}
+
+// ─── public (evergreen) signing links ───
+
+/** Turn a single-role template into a public, self-serve signing link. */
+export async function publishTemplate(
+  db: Database,
+  userId: string,
+  id: string,
+): Promise<{ slug: string }> {
+  const tpl = await requireTemplate(db, userId, id);
+  if (!tpl.storageKey) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'Upload a document to the template before publishing it.',
+    });
+  }
+  const roleRows = await db
+    .select({ id: templateRoles.id })
+    .from(templateRoles)
+    .where(eq(templateRoles.templateId, id));
+  if (roleRows.length !== 1) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'Public links require a template with exactly one signer role.',
+    });
+  }
+  const slug = tpl.publicSlug ?? randomUUID().replace(/-/g, '').slice(0, 12);
+  await db.update(templates).set({ isPublic: true, publicSlug: slug }).where(eq(templates.id, id));
+  return { slug };
+}
+
+export async function unpublishTemplate(db: Database, userId: string, id: string): Promise<void> {
+  await requireTemplate(db, userId, id);
+  await db.update(templates).set({ isPublic: false }).where(eq(templates.id, id));
+}
+
+/** Public template metadata for the self-serve landing page (no auth). */
+export async function getPublicTemplate(
+  db: Database,
+  slug: string,
+): Promise<{ name: string; documentName: string } | null> {
+  const rows = await db
+    .select({ name: templates.name, documentName: templates.documentName })
+    .from(templates)
+    .where(and(eq(templates.publicSlug, slug), eq(templates.isPublic, true)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Spin up a fresh envelope from a public template for a self-identified signer,
+ * send it, and return their signing token. No API key required — the template's
+ * owner account is the sender.
+ */
+export async function startPublicSigning(
+  db: Database,
+  storage: Storage,
+  slug: string,
+  signer: { name: string; email: string },
+  ctx: RequestContext,
+): Promise<{ token: string }> {
+  const rows = await db
+    .select()
+    .from(templates)
+    .where(and(eq(templates.publicSlug, slug), eq(templates.isPublic, true)))
+    .limit(1);
+  const tpl = rows[0];
+  if (!tpl) {
+    throw new HttpProblem({
+      status: 404,
+      title: 'Not Found',
+      detail: 'This signing link is not available.',
+    });
+  }
+  const roleRows = await db
+    .select({ id: templateRoles.id })
+    .from(templateRoles)
+    .where(eq(templateRoles.templateId, tpl.id));
+  const role = roleRows[0];
+  if (!role || roleRows.length !== 1) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'This template is not configured for public signing.',
+    });
+  }
+  const env = await instantiateTemplate(db, storage, tpl.userId, tpl.id, {
+    signers: [{ roleId: role.id, name: signer.name, email: signer.email }],
+  });
+  await sendEnvelope(db, tpl.userId, env.id, ctx);
+  const sRows = await db
+    .select({ token: signers.signingToken })
+    .from(signers)
+    .where(eq(signers.envelopeId, env.id))
+    .limit(1);
+  const token = sRows[0]?.token;
+  if (!token) {
+    throw new Error('No signer token after public start');
+  }
+  return { token };
 }

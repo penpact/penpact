@@ -18,6 +18,7 @@ import {
   instantiateTemplateSchema,
   placeFieldsSchema,
   placeTemplateFieldsSchema,
+  publicStartSchema,
   templateCreateSchema,
   voidSchema,
 } from '../schemas.js';
@@ -46,10 +47,14 @@ import {
 import {
   createTemplate,
   deleteTemplate,
+  getPublicTemplate,
   getTemplate,
   instantiateTemplate,
   listTemplates,
   placeTemplateFields,
+  publishTemplate,
+  startPublicSigning,
+  unpublishTemplate,
   uploadTemplateDocument,
 } from '../services/templates.js';
 import { getStorage } from '../storage/index.js';
@@ -303,10 +308,50 @@ templatesRoute.post('/:id/envelopes', validateJson(instantiateTemplateSchema), a
   return c.json(envelope, 201);
 });
 
+templatesRoute.post('/:id/publish', async (c) => {
+  const { slug } = await publishTemplate(c.get('db'), c.get('userId'), c.req.param('id'));
+  const base = process.env.PUBLIC_BASE_URL ?? '';
+  return c.json({ slug, publicUrl: `${base}/s/${slug}` });
+});
+
+templatesRoute.delete('/:id/publish', async (c) => {
+  await unpublishTemplate(c.get('db'), c.get('userId'), c.req.param('id'));
+  return c.body(null, 204);
+});
+
+// ─── Public self-serve template signing (no API key; rate-limited) ───
+const publicRoute = new Hono<AppEnv>();
+publicRoute.use('*', rateLimit({ windowMs: 60_000, max: 20 }));
+publicRoute.use('*', async (c, next) => {
+  c.set('db', getDb());
+  await next();
+});
+
+publicRoute.get('/templates/:slug', async (c) => {
+  const meta = await getPublicTemplate(c.get('db'), c.req.param('slug'));
+  if (!meta) {
+    throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Signing link not found.' });
+  }
+  return c.json(meta);
+});
+
+publicRoute.post('/templates/:slug/start', validateJson(publicStartSchema), async (c) => {
+  const { token } = await startPublicSigning(
+    c.get('db'),
+    getStorage(),
+    c.req.param('slug'),
+    c.req.valid('json'),
+    reqCtx(c),
+  );
+  const base = process.env.PUBLIC_BASE_URL ?? '';
+  return c.json({ signUrl: `${base}/sign/${token}`, token });
+});
+
 export const v1 = new Hono<AppEnv>();
 v1.get('/', (c) => c.json({ version: 'v1', status: 'preview' }));
 v1.route('/envelopes', envelopesRoute);
 v1.route('/templates', templatesRoute);
+v1.route('/public', publicRoute);
 v1.route('/sign', signRoute);
 
 export type V1 = typeof v1;

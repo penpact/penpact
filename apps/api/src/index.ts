@@ -9,6 +9,7 @@ import { v1 } from './routes/v1.js';
 import { startWebhookWorker } from './services/webhook-worker.js';
 import type { AppEnv } from './types.js';
 import { dashboardPageHtml } from './web/dashboard-page.js';
+import { publicTemplatePageHtml } from './web/public-template-page.js';
 import { signPageHtml } from './web/sign-page.js';
 
 export const app = new Hono<AppEnv>();
@@ -30,6 +31,9 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 // Human-facing hosted signing page. The token in the path is the signer's
 // credential; the page calls the /v1/sign/:token API from the browser.
 app.get('/sign/:token', (c) => c.html(signPageHtml(c.req.param('token'))));
+
+// Public self-serve template landing page (the page calls /v1/public/* itself).
+app.get('/s/:slug', (c) => c.html(publicTemplatePageHtml()));
 
 app.route('/v1', v1);
 
