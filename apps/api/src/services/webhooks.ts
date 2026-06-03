@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { type Database, webhookDeliveries, webhookEndpoints } from '@penpact/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, lte } from 'drizzle-orm';
 import { generateWebhookSecret } from '../lib/crypto.js';
 
 export interface WebhookEvent {
@@ -181,4 +181,103 @@ export async function enqueueEnvelopeEvent(
     })),
   );
   return endpoints.length;
+}
+
+export interface WebhookFetchResponse {
+  ok: boolean;
+  status: number;
+}
+export type WebhookFetch = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; body: string },
+) => Promise<WebhookFetchResponse>;
+
+export interface DrainOptions {
+  fetch?: WebhookFetch;
+  now?: Date;
+  limit?: number;
+}
+
+export interface DrainSummary {
+  attempted: number;
+  succeeded: number;
+  rescheduled: number;
+  failed: number;
+}
+
+/**
+ * Send every due `pending` delivery once. On 2xx → succeeded. On failure →
+ * reschedule with exponential backoff, or mark `failed` once attempts reach
+ * maxAttempts. The fetch impl and clock are injectable for testing.
+ */
+export async function drainDueDeliveries(db: Database, opts: DrainOptions = {}): Promise<DrainSummary> {
+  const now = opts.now ?? new Date();
+  const send = opts.fetch ?? (globalThis.fetch as unknown as WebhookFetch);
+  const limit = opts.limit ?? 50;
+
+  const due = await db
+    .select({
+      id: webhookDeliveries.id,
+      attempts: webhookDeliveries.attempts,
+      maxAttempts: webhookDeliveries.maxAttempts,
+      eventType: webhookDeliveries.eventType,
+      payload: webhookDeliveries.payload,
+      url: webhookEndpoints.url,
+      secret: webhookEndpoints.secret,
+    })
+    .from(webhookDeliveries)
+    .innerJoin(webhookEndpoints, eq(webhookEndpoints.id, webhookDeliveries.endpointId))
+    .where(and(eq(webhookDeliveries.status, 'pending'), lte(webhookDeliveries.nextAttemptAt, now)))
+    .limit(limit);
+
+  const summary: DrainSummary = { attempted: due.length, succeeded: 0, rescheduled: 0, failed: 0 };
+
+  for (const d of due) {
+    const body = JSON.stringify(d.payload);
+    const signature = signPayload(d.secret, body, Math.floor(now.getTime() / 1000));
+    let ok = false;
+    let responseStatus: number | null = null;
+    let error: string | null = null;
+    try {
+      const res = await send(d.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'Penpact-Signature': signature,
+          'Penpact-Event': d.eventType,
+          'Penpact-Delivery': d.id,
+        },
+        body,
+      });
+      ok = res.ok;
+      responseStatus = res.status;
+      if (!ok) error = `HTTP ${res.status}`;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'delivery failed';
+    }
+
+    const attempts = d.attempts + 1;
+    if (ok) {
+      await db
+        .update(webhookDeliveries)
+        .set({ status: 'succeeded', attempts, lastAttemptAt: now, responseStatus, error: null })
+        .where(eq(webhookDeliveries.id, d.id));
+      summary.succeeded += 1;
+    } else if (isExhausted(attempts, d.maxAttempts)) {
+      await db
+        .update(webhookDeliveries)
+        .set({ status: 'failed', attempts, lastAttemptAt: now, responseStatus, error })
+        .where(eq(webhookDeliveries.id, d.id));
+      summary.failed += 1;
+    } else {
+      const nextAttemptAt = new Date(now.getTime() + nextDelaySeconds(attempts) * 1000);
+      await db
+        .update(webhookDeliveries)
+        .set({ status: 'pending', attempts, lastAttemptAt: now, responseStatus, error, nextAttemptAt })
+        .where(eq(webhookDeliveries.id, d.id));
+      summary.rescheduled += 1;
+    }
+  }
+
+  return summary;
 }

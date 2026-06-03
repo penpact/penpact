@@ -3,6 +3,7 @@ import {
   buildCompletedEvent,
   createEndpoint,
   deleteEndpoint,
+  drainDueDeliveries,
   enqueueEnvelopeEvent,
   listEndpoints,
 } from '@penpact/api/webhooks';
@@ -69,5 +70,60 @@ describe.skipIf(!url)('webhook endpoints + enqueue (integration)', () => {
     await deleteEndpoint(db, userId, created.id);
     const list = await listEndpoints(db, userId);
     expect(list.find((e) => e.id === created.id)).toBeUndefined();
+  });
+
+  it('retries a failed delivery with backoff, then succeeds', async () => {
+    // drainDueDeliveries is global (one worker drains all due rows), so clear
+    // any backlog from earlier tests to make the attempt counts deterministic.
+    await db.delete(webhookDeliveries);
+    const owner = (
+      await db
+        .insert(users)
+        .values({ email: `wh-${randomUUID()}@penpact.test` })
+        .returning({ id: users.id })
+    )[0]?.id as string;
+    const endpoint = await createEndpoint(db, owner, 'https://drain.test/hook');
+    await enqueueEnvelopeEvent(db, owner, buildCompletedEvent(randomUUID(), 'hash'));
+
+    const deliveryId = (
+      await db
+        .select({ id: webhookDeliveries.id })
+        .from(webhookDeliveries)
+        .where(eq(webhookDeliveries.endpointId, endpoint.id))
+    )[0]?.id as string;
+
+    // A freshly enqueued delivery is due at insert time (DB now()), so drive
+    // the injected clock from real time to keep the first attempt due.
+    const t0 = new Date(Date.now() + 1_000);
+    let calls = 0;
+    const failThenOk = async () => {
+      calls += 1;
+      return calls === 1 ? { ok: false, status: 500 } : { ok: true, status: 200 };
+    };
+
+    // First drain: the send fails, so the delivery is rescheduled, not failed.
+    const first = await drainDueDeliveries(db, { fetch: failThenOk, now: t0 });
+    expect(first.attempted).toBe(1);
+    const afterFail = (
+      await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.id, deliveryId))
+    )[0];
+    expect(afterFail?.status).toBe('pending');
+    expect(afterFail?.attempts).toBe(1);
+    expect(afterFail?.nextAttemptAt.getTime()).toBeGreaterThan(t0.getTime());
+
+    // Not due yet at t0: a drain at t0 should skip it.
+    const skipped = await drainDueDeliveries(db, { fetch: failThenOk, now: t0 });
+    expect(skipped.attempted).toBe(0);
+
+    // Once due, the second attempt succeeds.
+    const t1 = new Date(t0.getTime() + 120_000);
+    const second = await drainDueDeliveries(db, { fetch: failThenOk, now: t1 });
+    expect(second.attempted).toBe(1);
+    const afterOk = (
+      await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.id, deliveryId))
+    )[0];
+    expect(afterOk?.status).toBe('succeeded');
+    expect(afterOk?.attempts).toBe(2);
+    expect(afterOk?.responseStatus).toBe(200);
   });
 });
