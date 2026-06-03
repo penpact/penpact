@@ -1,4 +1,4 @@
-import { AUTH_METHODS, FIELD_TYPES } from '@penpact/core';
+import { AUTH_METHODS, FIELD_TYPES, SIGNATURE_TYPES } from '@penpact/core';
 import { z } from 'zod';
 
 export const signerCreateSchema = z.object({
@@ -33,3 +33,23 @@ export const placeFieldsSchema = z.object({
 
 export type FieldCreateInput = z.infer<typeof fieldCreateSchema>;
 export type PlaceFieldsInput = z.infer<typeof placeFieldsSchema>;
+
+// ─── Signer-facing payloads ───
+export const consentSchema = z.object({
+  disclosureHash: z.string().min(1),
+  agree: z.literal(true),
+});
+
+export const completeSchema = z.object({
+  signatureType: z.enum(SIGNATURE_TYPES),
+  fields: z
+    .array(z.object({ fieldId: z.string().uuid(), value: z.string().max(10_000) }))
+    .default([]),
+});
+
+export const declineSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+export type CompleteInput = z.infer<typeof completeSchema>;
+export type DeclineInput = z.infer<typeof declineSchema>;

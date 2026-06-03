@@ -1,7 +1,15 @@
-import { type Database, envelopes, fields, signers, users } from '@penpact/db';
+import { type Database, documents, envelopes, fields, signers, users } from '@penpact/db';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
 import { generateSigningToken } from '../lib/crypto.js';
+import { HttpProblem } from '../lib/problem.js';
 import type { EnvelopeCreateInput } from '../schemas.js';
+import { requireDraftEnvelope } from './access.js';
+import { recordEvent } from './events.js';
+
+export interface RequestContext {
+  ip: string | null;
+  ua: string | null;
+}
 
 type EnvelopeRow = typeof envelopes.$inferSelect;
 type SignerRow = typeof signers.$inferSelect;
@@ -49,7 +57,7 @@ export interface EnvelopeResponse {
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
-function toSigner(row: SignerRow): SignerResponse {
+export function toSignerResponse(row: SignerRow): SignerResponse {
   return {
     id: row.id,
     name: row.name,
@@ -90,7 +98,7 @@ function toEnvelope(
     documentHashOriginal: env.documentHashOriginal,
     documentHashFinal: env.documentHashFinal,
     hashAlgorithm: env.hashAlgorithm,
-    signers: signerRows.sort((a, b) => a.routingOrder - b.routingOrder).map(toSigner),
+    signers: signerRows.sort((a, b) => a.routingOrder - b.routingOrder).map(toSignerResponse),
     fields: fieldRows.map(toFieldResponse),
     createdAt: env.createdAt.toISOString(),
     sentAt: iso(env.sentAt),
@@ -144,8 +152,78 @@ export async function createEnvelope(
       )
       .returning();
 
+    await recordEvent(tx, {
+      envelopeId: env.id,
+      type: 'envelope_created',
+      actor: 'sender',
+      actorId: userId,
+    });
+
     return toEnvelope(env, signerRows, []);
   });
+}
+
+/** Lock the document, transition draft → sent, and record one email_sent event per signer. */
+export async function sendEnvelope(
+  db: Database,
+  userId: string,
+  envelopeId: string,
+  ctx: RequestContext,
+): Promise<EnvelopeResponse> {
+  await requireDraftEnvelope(db, userId, envelopeId);
+
+  const docRows = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.envelopeId, envelopeId), eq(documents.isFinal, false)))
+    .limit(1);
+  if (!docRows[0]) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'Upload a document before sending.',
+    });
+  }
+
+  const signerRows = await db.select().from(signers).where(eq(signers.envelopeId, envelopeId));
+  const fieldRows = await db
+    .select({ signerId: fields.signerId })
+    .from(fields)
+    .where(eq(fields.envelopeId, envelopeId));
+  const signersWithFields = new Set(fieldRows.map((f) => f.signerId));
+  for (const signer of signerRows) {
+    if (!signersWithFields.has(signer.id)) {
+      throw new HttpProblem({
+        status: 422,
+        title: 'Validation Error',
+        detail: `Signer ${signer.email} has no fields to sign.`,
+      });
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(envelopes)
+      .set({ status: 'sent', sentAt: new Date() })
+      .where(eq(envelopes.id, envelopeId));
+    await tx.update(signers).set({ status: 'sent' }).where(eq(signers.envelopeId, envelopeId));
+    for (const signer of signerRows) {
+      await recordEvent(tx, {
+        envelopeId,
+        signerId: signer.id,
+        type: 'email_sent',
+        actor: 'system',
+        ipAddress: ctx.ip,
+        userAgent: ctx.ua,
+      });
+    }
+  });
+
+  const result = await getEnvelope(db, userId, envelopeId);
+  if (!result) {
+    throw new Error('Envelope vanished after send');
+  }
+  return result;
 }
 
 export async function getEnvelope(

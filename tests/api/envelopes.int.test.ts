@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { app } from '@penpact/api';
 import { generateApiKey } from '@penpact/api/crypto';
-import { apiKeys, createDatabase, type Database, users } from '@penpact/db';
+import { apiKeys, createDatabase, type Database, signers, users } from '@penpact/db';
+import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { PDFDocument } from 'pdf-lib';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -152,5 +153,100 @@ describe.skipIf(!url)('envelopes (integration)', () => {
       body: new Uint8Array([1, 2, 3]),
     });
     expect(res.status).toBe(422);
+  });
+
+  const jsonHeaders = { 'content-type': 'application/json' };
+
+  async function sentEnvelopeWithSigner(): Promise<{ id: string; token: string }> {
+    const { id, signerId } = await createDraft();
+    await app.request(`/v1/envelopes/${id}/document`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/pdf' },
+      body: await onePagePdf(),
+    });
+    await app.request(`/v1/envelopes/${id}/fields`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        fields: [{ type: 'signature', signerId, page: 1, x: 100, y: 100, width: 150, height: 40 }],
+      }),
+    });
+    const sent = await app.request(`/v1/envelopes/${id}/send`, {
+      method: 'POST',
+      headers: headers(),
+    });
+    expect(sent.status).toBe(200);
+    const tokenRows = await db
+      .select({ token: signers.signingToken })
+      .from(signers)
+      .where(eq(signers.envelopeId, id));
+    const token = tokenRows[0]?.token;
+    if (!token) {
+      throw new Error('missing signing token');
+    }
+    return { id, token };
+  }
+
+  it('runs the full signing flow (view → consent gate → complete → completed)', async () => {
+    const { id, token } = await sentEnvelopeWithSigner();
+
+    const sessionRes = await app.request(`/v1/sign/${token}`);
+    expect(sessionRes.status).toBe(200);
+    const session = await sessionRes.json();
+    expect(session.consentRequired).toBe(true);
+    expect(session.consentDisclosure.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(session.fields).toHaveLength(1);
+    const fieldId = session.fields[0].id;
+    const disclosureHash = session.consentDisclosure.hash;
+
+    const docRes = await app.request(`/v1/sign/${token}/document`);
+    expect(docRes.status).toBe(200);
+    expect(docRes.headers.get('content-type')).toContain('application/pdf');
+
+    // Signing before consent is blocked.
+    const early = await app.request(`/v1/sign/${token}/complete`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ signatureType: 'typed', fields: [{ fieldId, value: 'Bob' }] }),
+    });
+    expect(early.status).toBe(422);
+
+    const consent = await app.request(`/v1/sign/${token}/consent`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ disclosureHash, agree: true }),
+    });
+    expect(consent.status).toBe(204);
+
+    const complete = await app.request(`/v1/sign/${token}/complete`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ signatureType: 'typed', fields: [{ fieldId, value: 'Bob' }] }),
+    });
+    expect(complete.status).toBe(200);
+    expect((await complete.json()).status).toBe('signed');
+
+    const env = await app.request(`/v1/envelopes/${id}`, { headers: headers() });
+    expect((await env.json()).status).toBe('completed');
+
+    // The session is gone once completed.
+    expect((await app.request(`/v1/sign/${token}`)).status).toBe(410);
+  });
+
+  it('records a decline and closes the envelope', async () => {
+    const { id, token } = await sentEnvelopeWithSigner();
+    const res = await app.request(`/v1/sign/${token}/decline`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ reason: 'No thanks' }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe('declined');
+    const env = await app.request(`/v1/envelopes/${id}`, { headers: headers() });
+    expect((await env.json()).status).toBe('declined');
+  });
+
+  it('404s an unknown signing token', async () => {
+    expect((await app.request('/v1/sign/nope-not-a-token')).status).toBe(404);
   });
 });
