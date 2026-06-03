@@ -64,6 +64,10 @@
     "./pdf": {
       "import": "./dist/services/pdf.js",
       "default": "./dist/services/pdf.js"
+    },
+    "./templates": {
+      "import": "./dist/services/templates.js",
+      "default": "./dist/services/templates.js"
     }
   },
   "scripts": {
