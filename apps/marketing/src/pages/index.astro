@@ -1,4 +1,5 @@
 ---
+import { Code } from 'astro:components';
 import Base from '../layouts/Base.astro';
 
 const title = 'Penpact, the open-source e-signature API for developers';
@@ -19,13 +20,17 @@ await penpact.placeFields(envelope.id, [
   { type: 'signature', signerId: envelope.signers[0].id,
     page: 1, x: 72, y: 620, width: 200, height: 40 },
 ]);
-await penpact.send(envelope.id);
-// Your signer gets a link, consents, and signs. You get a sealed PDF.`;
+
+// Your signer gets a link, consents, and signs.
+// You get back a sealed, PAdES-signed PDF.
+await penpact.send(envelope.id);`;
+
+const trust = ['ESIGN / UETA consent', 'Append-only audit trail', 'PAdES digital seal', 'SHA-256 certificate'];
 
 const features = [
   {
-    h: 'Typed SDK, not a generated blob',
-    p: 'A small, hand-written TypeScript client you can read in one sitting. No 200-method generated SDK, no learning a foreign object model.',
+    h: 'A typed SDK, not a generated blob',
+    p: 'A small, hand-written TypeScript client you can read in one sitting. No 200-method generated object model to learn — just the calls you need, fully typed.',
   },
   {
     h: 'AI field detection',
@@ -33,7 +38,7 @@ const features = [
   },
   {
     h: 'Self-host in two minutes',
-    p: 'docker compose up starts Postgres and the API and prints a working key. Keep every document on your own infrastructure under AGPL-3.0.',
+    p: 'docker compose up starts Postgres and the API and prints a working key. Every document stays on your own infrastructure, under AGPL-3.0.',
   },
   {
     h: 'Evidence built in',
@@ -41,19 +46,19 @@ const features = [
   },
   {
     h: 'No per-seat, no per-page',
-    p: 'Usage-based pricing on the managed cloud, and free forever when you self-host. Signing is part of your product, not a per-envelope tax.',
+    p: 'Usage-based on the managed cloud, free forever when you self-host. Signing is part of your product, not a per-envelope tax on every customer.',
   },
   {
     h: 'Embeddable signing',
-    p: 'A hosted signing page today, a drop-in React <Sign/> component next. Your users stay in your product.',
+    p: 'A hosted signing page and a drop-in, themeable React <Sign/> component. Your users sign inside your product, under your brand.',
   },
 ];
 
 const steps = [
   ['Create an envelope', 'One call with the document name and signers.'],
-  ['Upload and place fields', 'Send a PDF, then place fields by coordinate or let AI propose them.'],
-  ['Send', 'Each signer gets a link, accepts the ESIGN disclosure, and signs.'],
-  ['Get a sealed PDF', 'Penpact flattens the values, seals the PDF, and writes a certificate of completion.'],
+  ['Upload & place fields', 'Send a PDF, then place fields by coordinate, in the visual builder, or let AI propose them.'],
+  ['Send', 'Each signer gets a link, accepts the ESIGN disclosure, and signs — typed, drawn, or with a step-up code.'],
+  ['Get a sealed PDF', 'Penpact flattens the values, seals the PDF, and writes a Certificate of Completion.'],
 ];
 ---
 
@@ -75,46 +80,47 @@ const steps = [
     sameAs: 'https://github.com/penpact/penpact',
   })} />
 
-  <section class="hero">
-    <div class="wrap">
-      <p class="eyebrow">Open source, AGPL-3.0, self-hostable</p>
-      <h1>The e-signature API built to live <span>inside your product</span>.</h1>
-      <p class="sub">
-        Penpact is an open-source, embeddable e-signature API, the open
-        alternative to DocuSign. Self-host the whole stack or use the managed
-        cloud. Typed SDK, AI field detection, a real audit trail, no per-seat
-        billing.
-      </p>
-      <div class="cta">
-        <a class="btn btn-primary" href="https://api.penpact.dev/app">Get your API key</a>
-        <a class="btn btn-ghost" href="https://github.com/penpact/penpact">Star on GitHub</a>
-        <a class="btn btn-ghost" href="/embed-e-signatures-nextjs">Read the quickstart</a>
-      </div>
-      <p class="note">
-        Early development (v0.1.0). The API is not stable yet and the consent
-        text is pending a lawyer's review. We would rather say that plainly.
-      </p>
+  <section class="hero wrap">
+    <a class="badge reveal" href="https://github.com/penpact/penpact">
+      <span class="dot"></span> Open source · AGPL-3.0 · self-hostable
+    </a>
+    <h1 class="reveal d1">
+      The e-signature API built to live
+      <em class="display">inside your product.</em>
+    </h1>
+    <p class="sub reveal d2">
+      The open alternative to DocuSign. Self-host the whole stack or use the
+      managed cloud — with a typed SDK, AI field detection, a real audit trail,
+      and no per-seat billing.
+    </p>
+    <div class="cta reveal d3">
+      <a class="btn btn-primary" href="https://api.penpact.dev/app">Get your API key &rarr;</a>
+      <a class="btn btn-ghost" href="https://github.com/penpact/penpact">★ Star on GitHub</a>
     </div>
+    <ul class="trust reveal d4">
+      {trust.map((t) => <li><span class="check">✓</span>{t}</li>)}
+    </ul>
   </section>
 
-  <section class="wrap band">
-    <div class="code-col">
-      <h2>From zero to a sent document</h2>
-      <p class="lead">
-        Install <code>@penpact/sdk</code>, create an envelope, place a field,
-        and send. The signer does the rest.
-      </p>
-      <a class="btn btn-ghost" href="/embed-e-signatures-react">Add it to a React app</a>
+  <section class="wrap editor-wrap reveal d4">
+    <div class="editor">
+      <div class="chrome">
+        <span class="tl"></span><span class="tl"></span><span class="tl"></span>
+        <span class="file">sign.ts</span>
+        <span class="env">@penpact/sdk</span>
+      </div>
+      <Code code={quickstart} lang="ts" theme="poimandres" />
     </div>
-    <pre><code>{quickstart}</code></pre>
+    <p class="editor-cap">From zero to a sent, sealed document — the whole flow, in one file.</p>
   </section>
 
   <section class="wrap">
-    <h2 class="center">How it works</h2>
+    <p class="kicker">The flow</p>
+    <h2>Four calls. Then evidence.</h2>
     <ol class="steps">
       {steps.map(([h, p], i) => (
         <li>
-          <span class="num">{i + 1}</span>
+          <span class="num">{String(i + 1).padStart(2, '0')}</span>
           <div><strong>{h}</strong><p>{p}</p></div>
         </li>
       ))}
@@ -122,7 +128,8 @@ const steps = [
   </section>
 
   <section class="wrap">
-    <h2 class="center">Why developers pick Penpact</h2>
+    <p class="kicker">Why developers pick it</p>
+    <h2>Built like a developer tool, not a sales funnel.</h2>
     <div class="grid">
       {features.map((f) => (
         <div class="card">
@@ -135,13 +142,14 @@ const steps = [
 
   <section class="wrap compare">
     <div>
-      <h2>Coming from DocuSign?</h2>
+      <p class="kicker">Coming from DocuSign?</p>
+      <h2>The opposite stance, on purpose.</h2>
       <p class="lead">
         Per-envelope pricing, seat minimums, a generated SDK, and an iframe you
-        style around. Penpact takes the opposite stance: open source, a typed
-        SDK, and usage-based pricing with no seats.
+        style around. Penpact is open source, with a typed SDK and usage-based
+        pricing — no seats, no per-page tax.
       </p>
-      <a class="btn btn-ghost" href="/penpact-vs-docusign">See the full comparison</a>
+      <a class="btn btn-ghost" href="/penpact-vs-docusign">See the full comparison &rarr;</a>
     </div>
     <ul class="links">
       <li><a href="/open-source-docusign-alternative">Open-source DocuSign alternative</a></li>
@@ -152,64 +160,145 @@ const steps = [
   </section>
 
   <section class="wrap final">
-    <h2>Read the source. Run it yourself.</h2>
+    <h2 class="display">Read the source. Run it yourself.</h2>
     <p class="lead">
-      The core engine is on GitHub under AGPL-3.0. Self-host for free, or use
-      the managed cloud when you would rather not run the infrastructure.
+      The core engine is on GitHub under AGPL-3.0. Self-host for free, or use the
+      managed cloud when you would rather not run the infrastructure.
     </p>
     <div class="cta">
-      <a class="btn btn-primary" href="https://api.penpact.dev/app">Get your API key</a>
+      <a class="btn btn-primary" href="https://api.penpact.dev/app">Get your API key &rarr;</a>
       <a class="btn btn-ghost" href="https://github.com/penpact/penpact">github.com/penpact/penpact</a>
     </div>
+    <p class="note">
+      Early development (v0.1.0). The API is not stable yet and the consent text
+      is pending a lawyer's review. We would rather say that plainly.
+    </p>
   </section>
 </Base>
 
 <style>
-  .hero { padding: 84px 0 28px; }
-  .eyebrow {
-    color: var(--brand-2); font-weight: 600; font-size: 14px;
-    letter-spacing: 0.02em; margin: 0 0 14px; text-transform: none;
+  /* entrance */
+  .reveal { opacity: 0; transform: translateY(14px); animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+  .d1 { animation-delay: 0.06s; } .d2 { animation-delay: 0.12s; }
+  .d3 { animation-delay: 0.18s; } .d4 { animation-delay: 0.24s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  .hero { padding: 92px 24px 12px; text-align: center; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line-2); background: rgba(255,255,255,0.025);
+    color: var(--muted); border-radius: 999px; padding: 6px 14px;
+    font-size: 13px; font-weight: 500;
   }
+  .badge:hover { text-decoration: none; border-color: var(--brand); color: var(--ink); }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--seal); box-shadow: 0 0 10px var(--seal); }
+
   h1 {
-    font-size: clamp(34px, 6vw, 58px); line-height: 1.05; letter-spacing: -0.03em;
-    margin: 0 0 20px; max-width: 16ch;
+    font-size: clamp(38px, 6.4vw, 68px); line-height: 1.02;
+    margin: 22px auto 18px; max-width: 17ch;
   }
-  h1 span { color: var(--brand); }
-  .sub { font-size: clamp(17px, 2.4vw, 20px); color: var(--muted); max-width: 60ch; margin: 0 0 26px; }
-  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
-  .note { color: var(--muted); font-size: 13.5px; margin-top: 20px; max-width: 60ch; }
-
-  h2 { font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.02em; margin: 0 0 14px; }
-  h2.center { text-align: center; margin-top: 72px; margin-bottom: 28px; }
-  .lead { color: var(--muted); max-width: 56ch; }
-
-  .band {
-    display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 32px; align-items: center;
-    margin-top: 64px;
+  h1 em {
+    font-style: italic; font-size: 1.04em;
+    background: linear-gradient(100deg, var(--brand-2), #c9d8ff 60%, var(--brand-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  .band pre { margin: 0; }
+  .sub { font-size: clamp(17px, 2.1vw, 20px); color: var(--muted); max-width: 56ch; margin: 0 auto 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .trust {
+    list-style: none; padding: 0; margin: 34px auto 0; max-width: 760px;
+    display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: center;
+    color: var(--muted); font-size: 13.5px;
+  }
+  .trust li { display: inline-flex; align-items: center; gap: 7px; }
+  .trust .check { color: var(--seal); font-weight: 700; }
 
-  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; max-width: 760px; margin-inline: auto; }
-  .steps li { display: flex; gap: 16px; align-items: flex-start; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
-  .steps .num { flex: none; width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--brand) 22%, transparent); color: var(--brand-2); font-weight: 700; display: grid; place-items: center; font-size: 15px; }
+  /* editor */
+  .editor-wrap { margin-top: 44px; }
+  .editor {
+    max-width: 760px; margin: 0 auto;
+    border: 1px solid var(--line-2); border-radius: var(--radius-lg);
+    background: var(--bg-2); overflow: hidden;
+    box-shadow: 0 40px 90px -40px rgba(0,0,0,0.85), 0 0 0 1px rgba(91,140,255,0.06),
+      0 0 80px -30px rgba(91,140,255,0.35);
+  }
+  .chrome {
+    display: flex; align-items: center; gap: 7px;
+    padding: 11px 16px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  }
+  .chrome .tl { width: 11px; height: 11px; border-radius: 50%; background: #2e3340; }
+  .chrome .tl:nth-child(1) { background: #ff5f57; opacity: 0.85; }
+  .chrome .tl:nth-child(2) { background: #febc2e; opacity: 0.85; }
+  .chrome .tl:nth-child(3) { background: #28c840; opacity: 0.85; }
+  .chrome .file { margin-left: 12px; font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
+  .chrome .env { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted-2); }
+  .editor :global(pre.astro-code) { margin: 0; border: 0; border-radius: 0; padding: 20px 22px; background: var(--bg-2) !important; }
+  .editor-cap { text-align: center; color: var(--muted-2); font-size: 13.5px; margin: 16px auto 0; }
+
+  .kicker {
+    color: var(--brand-2); font-weight: 600; font-size: 13px;
+    letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 10px;
+  }
+  h2 { font-size: clamp(26px, 3.6vw, 38px); margin: 0 0 30px; max-width: 22ch; }
+  section.wrap { margin-top: 96px; }
+  .lead { color: var(--muted); max-width: 54ch; font-size: 16.5px; }
+
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .steps li {
+    display: flex; gap: 18px; align-items: flex-start;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+  .steps li:hover { border-color: var(--line-2); transform: translateX(3px); }
+  .steps .num {
+    flex: none; font-family: var(--mono); font-size: 14px; font-weight: 700;
+    color: var(--brand-2); width: 34px; padding-top: 1px;
+  }
+  .steps strong { font-size: 16px; }
   .steps p { margin: 4px 0 0; color: var(--muted); font-size: 14.5px; }
 
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-  .card h3 { margin: 0 0 8px; font-size: 17px; }
-  .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .card {
+    position: relative; background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 22px;
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card::before {
+    content: ""; position: absolute; inset: 0; border-radius: var(--radius);
+    padding: 1px; background: linear-gradient(140deg, rgba(91,140,255,0.5), transparent 40%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    opacity: 0; transition: opacity 0.2s ease;
+  }
+  .card:hover { transform: translateY(-3px); border-color: transparent; box-shadow: 0 24px 50px -30px rgba(0,0,0,0.8); }
+  .card:hover::before { opacity: 1; }
+  .card h3 { margin: 0 0 9px; font-size: 17.5px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
 
-  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; margin-top: 72px; }
+  .compare { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 40px; align-items: start; }
+  .compare h2 { margin-bottom: 16px; }
+  .compare .btn { margin-top: 20px; }
   .compare .links { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-  .compare .links a { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; color: var(--ink); }
-  .compare .links a:hover { border-color: var(--brand); text-decoration: none; }
+  .compare .links a {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+    padding: 15px 18px; color: var(--ink); font-weight: 500;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  }
+  .compare .links a::after { content: "→"; color: var(--muted-2); }
+  .compare .links a:hover { border-color: var(--brand); background: var(--panel-2); text-decoration: none; transform: translateX(3px); }
+  .compare .links a:hover::after { color: var(--brand-2); }
 
-  .final { text-align: center; margin-top: 80px; }
+  .final { text-align: center; }
+  .final h2 { margin-inline: auto; font-size: clamp(30px, 5vw, 50px); }
   .final .lead { margin-inline: auto; }
-  .final .cta { justify-content: center; margin-top: 20px; }
+  .final .cta { margin-top: 24px; }
+  .final .note { color: var(--muted-2); font-size: 13px; margin: 22px auto 0; max-width: 56ch; }
 
   @media (max-width: 820px) {
-    .band, .compare { grid-template-columns: 1fr; }
+    .compare { grid-template-columns: 1fr; gap: 26px; }
     .grid { grid-template-columns: 1fr; }
+    section.wrap { margin-top: 72px; }
   }
 </style>
