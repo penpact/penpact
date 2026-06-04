@@ -206,6 +206,20 @@ async function renderApp(me, banner){
         '<button class="btn-primary" id="saveBrand" style="margin-top:12px">Save branding</button>' +
         '<span id="brandErr" class="err" style="margin-left:10px"></span>' +
       '</div>' +
+      '<h2>Team</h2>' +
+      '<div class="card">' +
+        '<div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end">' +
+          '<div style="flex:1;min-width:180px"><label for="orgSel">Workspace</label><select id="orgSel"></select></div>' +
+          '<div style="flex:1;min-width:160px"><label for="newOrg">New workspace</label><input id="newOrg" type="text" placeholder="Acme Legal"></div>' +
+          '<button class="btn-primary" id="createOrg">Create</button>' +
+        '</div>' +
+        '<div id="membersCard" style="margin-top:14px"></div>' +
+        '<div class="row" style="margin-top:10px;gap:10px;align-items:flex-end">' +
+          '<div style="flex:1;min-width:200px"><label for="inviteEmail">Invite member (email)</label><input id="inviteEmail" type="email" placeholder="teammate@example.com"></div>' +
+          '<button class="btn-primary" id="inviteBtn">Invite</button>' +
+          '<span id="orgErr" class="err"></span>' +
+        '</div>' +
+      '</div>' +
       '<h2>Envelopes</h2>' +
       '<div class="card" id="envCard"><p class="muted">Loading envelopes…</p></div>' +
       '<h2>Use your key</h2>' +
@@ -222,7 +236,48 @@ async function renderApp(me, banner){
     "  signers: [{ name: 'Ada', email: 'ada@example.com' }],\\n" +
     "});";
   $('saveBrand').onclick = saveBranding;
-  await Promise.all([loadStats(), loadKeys(), loadEnvelopes(), loadBranding()]);
+  $('createOrg').onclick = createOrg;
+  $('inviteBtn').onclick = inviteMember;
+  $('orgSel').onchange = switchOrg;
+  await Promise.all([loadStats(), loadKeys(), loadEnvelopes(), loadBranding(), loadOrgs()]);
+}
+
+let activeOrgId = null;
+async function loadOrgs(){
+  const res = await api('/orgs'); if(!res.ok) return;
+  const body = await res.json();
+  activeOrgId = body.activeOrgId;
+  const sel = $('orgSel');
+  sel.innerHTML = (body.data||[]).map((o)=>'<option value="'+esc(o.id)+'"'+(o.id===activeOrgId?' selected':'')+'>'+esc(o.name)+' ('+esc(o.role)+')</option>').join('');
+  await loadMembers();
+}
+async function loadMembers(){
+  const card = $('membersCard'); if(!card) return;
+  if(!activeOrgId){ card.innerHTML=''; return; }
+  const res = await api('/orgs/'+activeOrgId+'/members');
+  if(!res.ok){ card.innerHTML='<p class="muted">Could not load members.</p>'; return; }
+  const members = (await res.json()).data || [];
+  card.innerHTML = '<table><thead><tr><th>Member</th><th>Role</th></tr></thead><tbody>'+
+    members.map((m)=>'<tr><td>'+esc(m.email)+'</td><td><span class="pill">'+esc(m.role)+'</span></td></tr>').join('')+'</tbody></table>';
+}
+async function switchOrg(){
+  const id = $('orgSel').value;
+  const res = await api('/active-org', { method:'POST', body: JSON.stringify({ organizationId: id }) });
+  if(res.ok){ boot(); } // reload everything re-scoped to the new workspace
+}
+async function createOrg(){
+  const name = $('newOrg').value.trim(); const err = $('orgErr'); err.textContent='';
+  if(!name){ err.textContent='Enter a workspace name.'; return; }
+  const res = await api('/orgs', { method:'POST', body: JSON.stringify({ name }) });
+  if(res.ok){ $('newOrg').value=''; await loadOrgs(); }
+  else { err.style.color='var(--danger)'; err.textContent='Could not create workspace.'; }
+}
+async function inviteMember(){
+  const email = $('inviteEmail').value.trim(); const err = $('orgErr'); err.textContent='';
+  if(!email || !activeOrgId){ err.textContent='Enter an email.'; return; }
+  const res = await api('/orgs/'+activeOrgId+'/members', { method:'POST', body: JSON.stringify({ email }) });
+  if(res.ok){ $('inviteEmail').value=''; err.style.color='var(--ok)'; err.textContent='Invited.'; await loadMembers(); }
+  else { const j = await res.json().catch(()=>({})); err.style.color='var(--danger)'; err.textContent = j.detail || 'Could not invite (they must have a Penpact account).'; }
 }
 
 async function loadBranding(){

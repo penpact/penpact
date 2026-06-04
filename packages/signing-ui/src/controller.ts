@@ -17,9 +17,9 @@ export interface SignerField {
 }
 
 /** Whether a field's condition (if any) is satisfied by the current values. */
-export function fieldVisible(field: SignerField, valueOf: (fieldId: string) => string): boolean {
+export function fieldVisible(field: SignerField, readValue: (fieldId: string) => string): boolean {
   if (!field.condition) return true;
-  return valueOf(field.condition.fieldId) === field.condition.equals;
+  return readValue(field.condition.fieldId) === field.condition.equals;
 }
 
 export interface SignerInfo {
@@ -118,7 +118,7 @@ export function buildFieldValues(
   signatureValue?: string,
 ): BuildResult {
   const byId = new Map(fields.map((f) => [f.id, f]));
-  const valueOf = (fieldId: string): string => {
+  const readValue = (fieldId: string): string => {
     const f = byId.get(fieldId);
     if (!f) return '';
     if (f.type === 'signature' || f.type === 'stamp') return signatureValue ?? fullName;
@@ -130,8 +130,8 @@ export function buildFieldValues(
   const values: Array<{ fieldId: string; value: string }> = [];
   for (const f of fields) {
     // Skip fields hidden by an unmet condition — not shown, not required.
-    if (!fieldVisible(f, valueOf)) continue;
-    const value = valueOf(f.id);
+    if (!fieldVisible(f, readValue)) continue;
+    const value = readValue(f.id);
     if (f.required && !value) {
       return { ok: false, error: 'Please complete all required fields.' };
     }

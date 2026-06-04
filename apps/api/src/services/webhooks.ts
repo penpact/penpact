@@ -1,7 +1,8 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { type Database, webhookDeliveries, webhookEndpoints } from '@penpact/db';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { generateWebhookSecret } from '../lib/crypto.js';
+import { accessibleOrgIds } from './organizations.js';
 
 export interface WebhookEvent {
   id: string;
@@ -103,13 +104,14 @@ export interface CreatedEndpoint extends EndpointSummary {
 export async function createEndpoint(
   db: Database,
   userId: string,
+  organizationId: string,
   url: string,
   description?: string,
 ): Promise<CreatedEndpoint> {
   const secret = generateWebhookSecret();
   const inserted = await db
     .insert(webhookEndpoints)
-    .values({ userId, url, secret, description: description ?? null })
+    .values({ userId, organizationId, url, secret, description: description ?? null })
     .returning();
   const row = inserted[0];
   if (!row) {
@@ -126,6 +128,8 @@ export async function createEndpoint(
 }
 
 export async function listEndpoints(db: Database, userId: string): Promise<EndpointSummary[]> {
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) return [];
   const rows = await db
     .select({
       id: webhookEndpoints.id,
@@ -135,7 +139,7 @@ export async function listEndpoints(db: Database, userId: string): Promise<Endpo
       createdAt: webhookEndpoints.createdAt,
     })
     .from(webhookEndpoints)
-    .where(eq(webhookEndpoints.userId, userId));
+    .where(inArray(webhookEndpoints.organizationId, orgIds));
   return rows.map((r) => ({
     id: r.id,
     url: r.url,
@@ -146,9 +150,11 @@ export async function listEndpoints(db: Database, userId: string): Promise<Endpo
 }
 
 export async function deleteEndpoint(db: Database, userId: string, id: string): Promise<void> {
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) return;
   await db
     .delete(webhookEndpoints)
-    .where(and(eq(webhookEndpoints.id, id), eq(webhookEndpoints.userId, userId)));
+    .where(and(eq(webhookEndpoints.id, id), inArray(webhookEndpoints.organizationId, orgIds)));
 }
 
 export interface DeliverySummary {
@@ -168,6 +174,8 @@ export async function listDeliveries(
   userId: string,
   limit = 50,
 ): Promise<DeliverySummary[]> {
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) return [];
   const rows = await db
     .select({
       id: webhookDeliveries.id,
@@ -181,7 +189,7 @@ export async function listDeliveries(
     })
     .from(webhookDeliveries)
     .innerJoin(webhookEndpoints, eq(webhookEndpoints.id, webhookDeliveries.endpointId))
-    .where(eq(webhookEndpoints.userId, userId))
+    .where(inArray(webhookEndpoints.organizationId, orgIds))
     .orderBy(desc(webhookDeliveries.createdAt))
     .limit(limit);
   return rows.map((r) => ({
@@ -197,18 +205,23 @@ export async function listDeliveries(
 }
 
 /**
- * Enqueue one durable delivery per active endpoint of the envelope's owner.
- * Returns how many deliveries were enqueued. The worker handles the actual send.
+ * Enqueue one durable delivery per active endpoint of the envelope's
+ * organization. Returns how many deliveries were enqueued.
  */
 export async function enqueueEnvelopeEvent(
   db: Database,
-  userId: string,
+  organizationId: string | null,
   event: WebhookEvent,
 ): Promise<number> {
+  if (!organizationId) {
+    return 0;
+  }
   const endpoints = await db
     .select({ id: webhookEndpoints.id })
     .from(webhookEndpoints)
-    .where(and(eq(webhookEndpoints.userId, userId), eq(webhookEndpoints.active, true)));
+    .where(
+      and(eq(webhookEndpoints.organizationId, organizationId), eq(webhookEndpoints.active, true)),
+    );
   if (endpoints.length === 0) {
     return 0;
   }

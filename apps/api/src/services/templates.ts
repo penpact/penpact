@@ -17,7 +17,7 @@ import {
   templates,
   users,
 } from '@penpact/db';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { PDFDocument } from 'pdf-lib';
 import { generateSigningToken, sha256HexBytes } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
@@ -34,6 +34,7 @@ import {
   sendEnvelope,
 } from './envelopes.js';
 import { recordEvent } from './events.js';
+import { accessibleOrgIds, personalOrgId } from './organizations.js';
 
 type FieldType = (typeof templateFields.$inferSelect)['type'];
 
@@ -66,11 +67,15 @@ export interface TemplateResponse {
 }
 
 async function requireTemplate(db: Database, userId: string, id: string) {
-  const rows = await db
-    .select()
-    .from(templates)
-    .where(and(eq(templates.id, id), eq(templates.userId, userId)))
-    .limit(1);
+  const orgIds = await accessibleOrgIds(db, userId);
+  const rows =
+    orgIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(templates)
+          .where(and(eq(templates.id, id), inArray(templates.organizationId, orgIds)))
+          .limit(1);
   const tpl = rows[0];
   if (!tpl) {
     throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Template not found.' });
@@ -82,11 +87,13 @@ export async function createTemplate(
   db: Database,
   userId: string,
   input: TemplateCreateInput,
+  organizationId?: string,
 ): Promise<TemplateResponse> {
+  const orgId = organizationId ?? (await personalOrgId(db, userId));
   return db.transaction(async (tx) => {
     const inserted = await tx
       .insert(templates)
-      .values({ userId, name: input.name, documentName: input.documentName })
+      .values({ userId, organizationId: orgId, name: input.name, documentName: input.documentName })
       .returning();
     const tpl = inserted[0];
     if (!tpl) throw new Error('Failed to create template');
@@ -136,10 +143,12 @@ function toResponse(
 }
 
 export async function listTemplates(db: Database, userId: string): Promise<TemplateResponse[]> {
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) return [];
   const rows = await db
     .select()
     .from(templates)
-    .where(eq(templates.userId, userId))
+    .where(inArray(templates.organizationId, orgIds))
     .orderBy(desc(templates.createdAt));
   return Promise.all(rows.map((t) => load(db, t)));
 }
@@ -149,11 +158,15 @@ export async function getTemplate(
   userId: string,
   id: string,
 ): Promise<TemplateResponse | null> {
-  const rows = await db
-    .select()
-    .from(templates)
-    .where(and(eq(templates.id, id), eq(templates.userId, userId)))
-    .limit(1);
+  const orgIds = await accessibleOrgIds(db, userId);
+  const rows =
+    orgIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(templates)
+          .where(and(eq(templates.id, id), inArray(templates.organizationId, orgIds)))
+          .limit(1);
   const tpl = rows[0];
   return tpl ? load(db, tpl) : null;
 }
@@ -167,7 +180,11 @@ async function load(db: Database, tpl: typeof templates.$inferSelect): Promise<T
 }
 
 export async function deleteTemplate(db: Database, userId: string, id: string): Promise<void> {
-  await db.delete(templates).where(and(eq(templates.id, id), eq(templates.userId, userId)));
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) return;
+  await db
+    .delete(templates)
+    .where(and(eq(templates.id, id), inArray(templates.organizationId, orgIds)));
 }
 
 export async function uploadTemplateDocument(
@@ -302,6 +319,7 @@ export async function instantiateTemplate(
         .insert(envelopes)
         .values({
           userId,
+          organizationId: tpl.organizationId,
           documentName: input.documentName ?? tpl.documentName,
           senderName: user.name ?? user.email,
           senderEmail: user.email,

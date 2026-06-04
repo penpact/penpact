@@ -16,6 +16,7 @@ export async function generateEnvelopeFromText(
   userId: string,
   mode: 'live' | 'test',
   input: GenerateDocumentInput,
+  organizationId?: string,
 ): Promise<EnvelopeResponse> {
   const pdf = await renderTemplatePdf(input.template, input.variables ?? {});
 
@@ -27,7 +28,7 @@ export async function generateEnvelopeFromText(
   if (input.locale) createInput.locale = input.locale;
   if (input.reminderEveryHours) createInput.reminderEveryHours = input.reminderEveryHours;
 
-  const envelope = await createEnvelope(db, userId, createInput, mode);
+  const envelope = await createEnvelope(db, userId, createInput, mode, organizationId);
   await uploadDocument(db, storage, userId, envelope.id, pdf);
   const refreshed = await getEnvelope(db, userId, envelope.id);
   if (!refreshed) throw new Error('Envelope vanished after generation');

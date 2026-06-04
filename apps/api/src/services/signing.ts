@@ -529,7 +529,11 @@ export async function completeSigning(
 
   if (envelopeCompleted) {
     const { finalHash } = await finalizeEnvelope(db, storage, envelope.id);
-    await enqueueEnvelopeEvent(db, envelope.userId, buildCompletedEvent(envelope.id, finalHash));
+    await enqueueEnvelopeEvent(
+      db,
+      envelope.organizationId,
+      buildCompletedEvent(envelope.id, finalHash),
+    );
   } else if (newlyActivated.length > 0) {
     // Invite the freshly-activated next routing group (best-effort).
     const base = process.env.PUBLIC_BASE_URL ?? '';
@@ -587,7 +591,7 @@ export async function declineSigning(
     });
   });
 
-  await enqueueEnvelopeEvent(db, envelope.userId, buildDeclinedEvent(envelope.id));
+  await enqueueEnvelopeEvent(db, envelope.organizationId, buildDeclinedEvent(envelope.id));
 
   return reloadSigner(db, signer.id);
 }

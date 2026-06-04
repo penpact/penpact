@@ -84,6 +84,7 @@ envelopesRoute.post('/', validateJson(envelopeCreateSchema), async (c) => {
     c.get('userId'),
     c.req.valid('json'),
     c.get('mode'),
+    c.get('organizationId'),
   );
   return c.json(envelope, 201);
 });
@@ -96,6 +97,7 @@ envelopesRoute.post('/generate', validateJson(generateDocumentSchema), async (c)
     c.get('userId'),
     c.get('mode'),
     c.req.valid('json'),
+    c.get('organizationId'),
   );
   return c.json(envelope, 201);
 });
@@ -271,7 +273,15 @@ templatesRoute.use('*', apiKeyAuth);
 templatesRoute.use('*', idempotency);
 
 templatesRoute.post('/', validateJson(templateCreateSchema), async (c) => {
-  return c.json(await createTemplate(c.get('db'), c.get('userId'), c.req.valid('json')), 201);
+  return c.json(
+    await createTemplate(
+      c.get('db'),
+      c.get('userId'),
+      c.req.valid('json'),
+      c.get('organizationId'),
+    ),
+    201,
+  );
 });
 
 templatesRoute.get('/', async (c) => {

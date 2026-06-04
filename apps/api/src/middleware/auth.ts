@@ -4,6 +4,7 @@ import type { MiddlewareHandler } from 'hono';
 import { getDb } from '../db.js';
 import { hashApiKey } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
+import { personalOrgId } from '../services/organizations.js';
 import type { AppEnv } from '../types.js';
 
 /**
@@ -24,7 +25,7 @@ export const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const key = header.slice('Bearer '.length).trim();
   const db = getDb();
   const rows = await db
-    .select({ userId: apiKeys.userId, mode: apiKeys.mode })
+    .select({ userId: apiKeys.userId, mode: apiKeys.mode, organizationId: apiKeys.organizationId })
     .from(apiKeys)
     .where(and(eq(apiKeys.keyHash, hashApiKey(key)), isNull(apiKeys.revokedAt)))
     .limit(1);
@@ -37,5 +38,6 @@ export const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.set('db', db);
   c.set('userId', row.userId);
   c.set('mode', row.mode === 'test' ? 'test' : 'live');
+  c.set('organizationId', row.organizationId ?? (await personalOrgId(db, row.userId)));
   await next();
 };

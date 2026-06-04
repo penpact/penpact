@@ -84,6 +84,10 @@
     "./document-template": {
       "import": "./dist/lib/document-template.js",
       "default": "./dist/lib/document-template.js"
+    },
+    "./organizations": {
+      "import": "./dist/services/organizations.js",
+      "default": "./dist/services/organizations.js"
     }
   },
   "scripts": {

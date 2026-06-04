@@ -113,6 +113,13 @@
       "when": 1781800000000,
       "tag": "0015_envelope_locale",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1781900000000,
+      "tag": "0016_organizations",
+      "breakpoints": true
     }
   ]
 }

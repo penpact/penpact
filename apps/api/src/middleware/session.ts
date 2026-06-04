@@ -3,6 +3,7 @@ import { getCookie } from 'hono/cookie';
 import { getDb } from '../db.js';
 import { HttpProblem } from '../lib/problem.js';
 import { getSessionUser } from '../services/accounts.js';
+import { personalOrgId } from '../services/organizations.js';
 import type { AppEnv } from '../types.js';
 
 export const SESSION_COOKIE = 'penpact_session';
@@ -24,5 +25,7 @@ export const sessionAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   c.set('db', db);
   c.set('userId', user.id);
+  // The dashboard acts in the session's active org, else the user's personal org.
+  c.set('organizationId', user.activeOrgId ?? (await personalOrgId(db, user.id)));
   await next();
 };

@@ -1,20 +1,25 @@
 import { type Database, envelopes } from '@penpact/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { HttpProblem } from '../lib/problem.js';
+import { accessibleOrgIds } from './organizations.js';
 
 type EnvelopeRow = typeof envelopes.$inferSelect;
 
-/** Load an envelope owned by the caller, or throw 404. */
+/** Load an envelope in one of the caller's organizations, or throw 404. */
 export async function requireEnvelope(
   db: Database,
   userId: string,
   envelopeId: string,
 ): Promise<EnvelopeRow> {
-  const rows = await db
-    .select()
-    .from(envelopes)
-    .where(and(eq(envelopes.id, envelopeId), eq(envelopes.userId, userId)))
-    .limit(1);
+  const orgIds = await accessibleOrgIds(db, userId);
+  const rows =
+    orgIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(envelopes)
+          .where(and(eq(envelopes.id, envelopeId), inArray(envelopes.organizationId, orgIds)))
+          .limit(1);
   const env = rows[0];
   if (!env) {
     throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Envelope not found.' });

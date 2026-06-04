@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { createOrganization } from '@penpact/api/organizations';
 import {
   buildCompletedEvent,
   claimDueDeliveries,
@@ -18,19 +19,30 @@ const url = process.env.DATABASE_URL;
 describe.skipIf(!url)('webhook endpoints + enqueue (integration)', () => {
   let db: Database;
   let userId = '';
+  let orgId = '';
+
+  /** Insert a user + their personal org; returns both ids. */
+  async function newUserOrg(): Promise<{ userId: string; orgId: string }> {
+    const uid = (
+      await db
+        .insert(users)
+        .values({ email: `wh-${randomUUID()}@penpact.test` })
+        .returning({ id: users.id })
+    )[0]?.id as string;
+    const org = await createOrganization(db, uid, 'wh workspace');
+    return { userId: uid, orgId: org.id };
+  }
 
   beforeAll(async () => {
     db = createDatabase(url as string);
     await migrate(db, { migrationsFolder: 'packages/db/drizzle' });
-    const rows = await db
-      .insert(users)
-      .values({ email: `wh-${randomUUID()}@penpact.test` })
-      .returning({ id: users.id });
-    userId = rows[0]?.id as string;
+    const u = await newUserOrg();
+    userId = u.userId;
+    orgId = u.orgId;
   });
 
   it('creates an endpoint that returns a secret once, then lists it without the secret', async () => {
-    const created = await createEndpoint(db, userId, 'https://example.test/hook', 'prod');
+    const created = await createEndpoint(db, userId, orgId, 'https://example.test/hook', 'prod');
     expect(created.secret).toMatch(/^whsec_/);
     expect(created.url).toBe('https://example.test/hook');
 
@@ -41,18 +53,13 @@ describe.skipIf(!url)('webhook endpoints + enqueue (integration)', () => {
   });
 
   it('enqueues one pending delivery per active endpoint', async () => {
-    const isolated = (
-      await db
-        .insert(users)
-        .values({ email: `wh-${randomUUID()}@penpact.test` })
-        .returning({ id: users.id })
-    )[0]?.id as string;
+    const { userId: isolated, orgId: isoOrg } = await newUserOrg();
 
-    await createEndpoint(db, isolated, 'https://a.test/hook');
-    await createEndpoint(db, isolated, 'https://b.test/hook');
+    await createEndpoint(db, isolated, isoOrg, 'https://a.test/hook');
+    await createEndpoint(db, isolated, isoOrg, 'https://b.test/hook');
 
     const event = buildCompletedEvent(randomUUID(), 'deadbeef');
-    const enqueued = await enqueueEnvelopeEvent(db, isolated, event);
+    const enqueued = await enqueueEnvelopeEvent(db, isoOrg, event);
     expect(enqueued).toBe(2);
 
     const endpoints = await listEndpoints(db, isolated);
@@ -67,7 +74,7 @@ describe.skipIf(!url)('webhook endpoints + enqueue (integration)', () => {
   });
 
   it('deletes an endpoint (and only the caller can)', async () => {
-    const created = await createEndpoint(db, userId, 'https://del.test/hook');
+    const created = await createEndpoint(db, userId, orgId, 'https://del.test/hook');
     await deleteEndpoint(db, userId, created.id);
     const list = await listEndpoints(db, userId);
     expect(list.find((e) => e.id === created.id)).toBeUndefined();
@@ -77,14 +84,9 @@ describe.skipIf(!url)('webhook endpoints + enqueue (integration)', () => {
     // drainDueDeliveries is global (one worker drains all due rows), so clear
     // any backlog from earlier tests to make the attempt counts deterministic.
     await db.delete(webhookDeliveries);
-    const owner = (
-      await db
-        .insert(users)
-        .values({ email: `wh-${randomUUID()}@penpact.test` })
-        .returning({ id: users.id })
-    )[0]?.id as string;
-    const endpoint = await createEndpoint(db, owner, 'https://drain.test/hook');
-    await enqueueEnvelopeEvent(db, owner, buildCompletedEvent(randomUUID(), 'hash'));
+    const { userId: owner, orgId: ownerOrg } = await newUserOrg();
+    const endpoint = await createEndpoint(db, owner, ownerOrg, 'https://drain.test/hook');
+    await enqueueEnvelopeEvent(db, ownerOrg, buildCompletedEvent(randomUUID(), 'hash'));
 
     const deliveryId = (
       await db
@@ -130,14 +132,9 @@ describe.skipIf(!url)('webhook endpoints + enqueue (integration)', () => {
 
   it('claimDueDeliveries leases rows so a second worker gets none (multi-instance safe)', async () => {
     await db.delete(webhookDeliveries);
-    const owner = (
-      await db
-        .insert(users)
-        .values({ email: `wh-${randomUUID()}@penpact.test` })
-        .returning({ id: users.id })
-    )[0]?.id as string;
-    await createEndpoint(db, owner, 'https://claim.test/hook');
-    await enqueueEnvelopeEvent(db, owner, buildCompletedEvent(randomUUID(), 'hash'));
+    const { userId: owner, orgId: ownerOrg } = await newUserOrg();
+    await createEndpoint(db, owner, ownerOrg, 'https://claim.test/hook');
+    await enqueueEnvelopeEvent(db, ownerOrg, buildCompletedEvent(randomUUID(), 'hash'));
 
     // Margin absorbs any clock skew between the test host and the database.
     const now = new Date(Date.now() + 5_000);

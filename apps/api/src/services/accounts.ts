@@ -12,6 +12,7 @@ import { hashPassword, verifyPassword } from '../lib/password.js';
 import { HttpProblem } from '../lib/problem.js';
 import { consumeAuthToken, createAuthToken } from './auth-tokens.js';
 import { type MintedKey, mintApiKey } from './keys.js';
+import { accessibleOrgIds, createOrganization, requireMembership } from './organizations.js';
 
 const VERIFY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -85,6 +86,8 @@ export async function signUp(
   if (!userId) {
     throw new Error('Failed to create account');
   }
+  // Give the new account a personal organization (its default workspace).
+  await createOrganization(db, userId, `${normalized.split('@')[0]}'s workspace`);
   return createSession(db, userId, meta);
 }
 
@@ -111,6 +114,20 @@ export async function logIn(
   return createSession(db, user.id, meta);
 }
 
+/** Switch the session's active organization (after verifying membership). */
+export async function setActiveOrg(db: Database, token: string, orgId: string): Promise<void> {
+  // Resolve the session's user, then ensure they belong to the target org.
+  const user = await getSessionUser(db, token);
+  if (!user) {
+    throw new HttpProblem({ status: 401, title: 'Unauthorized', detail: 'Sign in to continue.' });
+  }
+  await requireMembership(db, user.id, orgId);
+  await db
+    .update(sessions)
+    .set({ activeOrgId: orgId })
+    .where(eq(sessions.tokenHash, sha256Hex(token)));
+}
+
 export async function logOut(db: Database, token: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.tokenHash, sha256Hex(token)));
 }
@@ -120,6 +137,7 @@ export interface SessionUser {
   email: string;
   name: string | null;
   emailVerified: boolean;
+  activeOrgId: string | null;
 }
 
 /** Resolve the user for a session token, or null if missing/expired. */
@@ -131,6 +149,7 @@ export async function getSessionUser(db: Database, token: string): Promise<Sessi
       name: users.name,
       emailVerifiedAt: users.emailVerifiedAt,
       expiresAt: sessions.expiresAt,
+      activeOrgId: sessions.activeOrgId,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -148,6 +167,7 @@ export async function getSessionUser(db: Database, token: string): Promise<Sessi
     email: row.email,
     name: row.name,
     emailVerified: row.emailVerifiedAt !== null,
+    activeOrgId: row.activeOrgId,
   };
 }
 
@@ -215,10 +235,12 @@ export interface ApiKeySummary {
 }
 
 export async function listApiKeys(db: Database, userId: string): Promise<ApiKeySummary[]> {
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) return [];
   const rows = await db
     .select()
     .from(apiKeys)
-    .where(eq(apiKeys.userId, userId))
+    .where(inArray(apiKeys.organizationId, orgIds))
     .orderBy(desc(apiKeys.createdAt));
   return rows.map((r) => ({
     id: r.id,
@@ -236,23 +258,33 @@ export async function createApiKey(
   userId: string,
   name: string,
   mode: 'live' | 'test' = 'live',
+  organizationId?: string,
 ): Promise<MintedKey> {
-  return mintApiKey(db, userId, name, mode);
+  return mintApiKey(db, userId, name, mode, organizationId);
 }
 
-/** Revoke one of the caller's own keys. Idempotent; 404 if not theirs. */
+/** Revoke a key in one of the caller's organizations. Idempotent; 404 if not. */
 export async function revokeApiKey(db: Database, userId: string, keyId: string): Promise<void> {
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) {
+    throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'API key not found.' });
+  }
   const updated = await db
     .update(apiKeys)
     .set({ revokedAt: new Date() })
-    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt)))
+    .where(
+      and(
+        eq(apiKeys.id, keyId),
+        inArray(apiKeys.organizationId, orgIds),
+        isNull(apiKeys.revokedAt),
+      ),
+    )
     .returning({ id: apiKeys.id });
   if (!updated[0]) {
-    // Either it does not exist, is not the caller's, or is already revoked.
     const exists = await db
       .select({ id: apiKeys.id })
       .from(apiKeys)
-      .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId)))
+      .where(and(eq(apiKeys.id, keyId), inArray(apiKeys.organizationId, orgIds)))
       .limit(1);
     if (!exists[0]) {
       throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'API key not found.' });
@@ -274,29 +306,37 @@ export async function getUsage(db: Database, userId: string): Promise<Usage> {
   startOfMonth.setUTCDate(1);
   startOfMonth.setUTCHours(0, 0, 0, 0);
 
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) {
+    return {
+      envelopesTotal: 0,
+      envelopesThisMonth: 0,
+      activeKeys: 0,
+      completed: 0,
+      pending: 0,
+      completionRate: 0,
+    };
+  }
+  const inOrg = inArray(envelopes.organizationId, orgIds);
+
   const [total, month, keys, completed, pending] = await Promise.all([
-    db.select({ n: count() }).from(envelopes).where(eq(envelopes.userId, userId)),
+    db.select({ n: count() }).from(envelopes).where(inOrg),
     db
       .select({ n: count() })
       .from(envelopes)
-      .where(and(eq(envelopes.userId, userId), gte(envelopes.createdAt, startOfMonth))),
+      .where(and(inOrg, gte(envelopes.createdAt, startOfMonth))),
     db
       .select({ n: count() })
       .from(apiKeys)
-      .where(and(eq(apiKeys.userId, userId), isNull(apiKeys.revokedAt))),
+      .where(and(inArray(apiKeys.organizationId, orgIds), isNull(apiKeys.revokedAt))),
     db
       .select({ n: count() })
       .from(envelopes)
-      .where(and(eq(envelopes.userId, userId), eq(envelopes.status, 'completed'))),
+      .where(and(inOrg, eq(envelopes.status, 'completed'))),
     db
       .select({ n: count() })
       .from(envelopes)
-      .where(
-        and(
-          eq(envelopes.userId, userId),
-          inArray(envelopes.status, ['sent', 'viewed', 'partially_signed']),
-        ),
-      ),
+      .where(and(inOrg, inArray(envelopes.status, ['sent', 'viewed', 'partially_signed']))),
   ]);
 
   const total0 = total[0]?.n ?? 0;

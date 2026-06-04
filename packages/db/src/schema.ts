@@ -89,6 +89,8 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     /** SHA-256 hash of the opaque session token carried in the cookie. */
     tokenHash: text('token_hash').notNull(),
+    /** The organization the dashboard is currently acting in (null = personal). */
+    activeOrgId: uuid('active_org_id').references(() => organizations.id, { onDelete: 'set null' }),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -129,6 +131,9 @@ export const webhookEndpoints = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
     url: text('url').notNull(),
     /** Shared HMAC signing secret (`whsec_…`); needed in plaintext to sign sends. */
     secret: text('secret').notNull(),
@@ -180,6 +185,10 @@ export const apiKeys = pgTable(
     prefix: text('prefix').notNull(),
     /** SHA-256 hash of the full high-entropy secret key. */
     keyHash: text('key_hash').notNull(),
+    /** Owning organization (the workspace the key acts in). */
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
     /** 'live' or 'test' — test keys create test-mode envelopes, kept out of live data. */
     mode: text('mode').notNull().default('live'),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
@@ -197,6 +206,10 @@ export const envelopes = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
+    /** Owning organization (shared workspace). The userId is the creator. */
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
     documentName: text('document_name').notNull(),
     status: envelopeStatus('status').notNull().default('draft'),
     /** 'live' or 'test' — inherited from the API key that created it. */
@@ -346,6 +359,9 @@ export const templates = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
     name: text('name').notNull(),
     documentName: text('document_name').notNull(),
     storageKey: text('storage_key'),
@@ -450,6 +466,39 @@ export const certificates = pgTable(
     generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('certificates_envelope_uq').on(t.envelopeId)],
+);
+
+// ─── organizations (shared workspaces / teams) ───
+export const organizations = pgTable(
+  'organizations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    /** The user who created the org (their personal workspace if backfilled). */
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (t) => [index('organizations_created_by_idx').on(t.createdBy)],
+);
+
+export const organizationMembers = pgTable(
+  'organization_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** owner | admin | member */
+    role: text('role').notNull().default('member'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('org_members_org_user_uq').on(t.organizationId, t.userId),
+    index('org_members_user_idx').on(t.userId),
+  ],
 );
 
 // ─── idempotency keys (Stripe-style safe POST retries) ───

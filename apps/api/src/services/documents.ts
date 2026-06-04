@@ -1,10 +1,11 @@
 import { type Database, documents, envelopes } from '@penpact/db';
-import { and, asc, count, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import { PDFDocument } from 'pdf-lib';
 import { sha256HexBytes } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { Storage } from '../storage/index.js';
 import { requireDraftEnvelope } from './access.js';
+import { accessibleOrgIds } from './organizations.js';
 
 export const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
@@ -116,11 +117,15 @@ export async function downloadDocument(
   userId: string,
   envelopeId: string,
 ): Promise<Uint8Array> {
-  const ownRows = await db
-    .select({ id: envelopes.id })
-    .from(envelopes)
-    .where(and(eq(envelopes.id, envelopeId), eq(envelopes.userId, userId)))
-    .limit(1);
+  const orgIds = await accessibleOrgIds(db, userId);
+  const ownRows =
+    orgIds.length === 0
+      ? []
+      : await db
+          .select({ id: envelopes.id })
+          .from(envelopes)
+          .where(and(eq(envelopes.id, envelopeId), inArray(envelopes.organizationId, orgIds)))
+          .limit(1);
   if (!ownRows[0]) {
     throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Envelope not found.' });
   }

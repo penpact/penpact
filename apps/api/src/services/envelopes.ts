@@ -1,11 +1,12 @@
 import { type Database, documents, envelopes, fields, signers, users } from '@penpact/db';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { generateSigningToken, sha256Hex } from '../lib/crypto.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { EnvelopeCreateInput } from '../schemas.js';
 import { requireDraftEnvelope, requireEnvelope } from './access.js';
 import { sendSigningInvite } from './email.js';
 import { recordEvent } from './events.js';
+import { accessibleOrgIds, personalOrgId } from './organizations.js';
 import { activeOrder, isActiveSigner } from './routing.js';
 import { buildVoidedEvent, enqueueEnvelopeEvent } from './webhooks.js';
 
@@ -123,6 +124,7 @@ export async function createEnvelope(
   userId: string,
   input: EnvelopeCreateInput,
   mode: 'live' | 'test' = 'live',
+  organizationId?: string,
 ): Promise<EnvelopeResponse> {
   const userRows = await db
     .select({ email: users.email, name: users.name })
@@ -133,12 +135,14 @@ export async function createEnvelope(
   if (!user) {
     throw new Error(`Authenticated user ${userId} not found`);
   }
+  const orgId = organizationId ?? (await personalOrgId(db, userId));
 
   return db.transaction(async (tx) => {
     const insertedEnvelopes = await tx
       .insert(envelopes)
       .values({
         userId,
+        organizationId: orgId,
         documentName: input.documentName,
         mode,
         locale: input.locale ?? 'en',
@@ -293,7 +297,7 @@ export async function voidEnvelope(
       metadata: { reason: reason ?? null },
     });
   });
-  await enqueueEnvelopeEvent(db, userId, buildVoidedEvent(envelopeId));
+  await enqueueEnvelopeEvent(db, env.organizationId, buildVoidedEvent(envelopeId));
   const result = await getEnvelope(db, userId, envelopeId);
   if (!result) {
     throw new Error('Envelope vanished after void');
@@ -359,11 +363,15 @@ export async function getEnvelope(
   userId: string,
   envelopeId: string,
 ): Promise<EnvelopeResponse | null> {
-  const envRows = await db
-    .select()
-    .from(envelopes)
-    .where(and(eq(envelopes.id, envelopeId), eq(envelopes.userId, userId)))
-    .limit(1);
+  const orgIds = await accessibleOrgIds(db, userId);
+  const envRows =
+    orgIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(envelopes)
+          .where(and(eq(envelopes.id, envelopeId), inArray(envelopes.organizationId, orgIds)))
+          .limit(1);
   const env = envRows[0];
   if (!env) {
     return null;
@@ -408,7 +416,11 @@ export async function listEnvelopes(
   userId: string,
   options: ListOptions,
 ): Promise<{ data: EnvelopeResponse[]; nextCursor: string | null; hasMore: boolean }> {
-  const conditions = [eq(envelopes.userId, userId)];
+  const orgIds = await accessibleOrgIds(db, userId);
+  if (orgIds.length === 0) {
+    return { data: [], nextCursor: null, hasMore: false };
+  }
+  const conditions = [inArray(envelopes.organizationId, orgIds)];
   if (options.status) {
     conditions.push(eq(envelopes.status, options.status));
   }

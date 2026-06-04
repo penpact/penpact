@@ -38,6 +38,13 @@ export const bulkSendSchema = z.object({
     .max(500),
 });
 
+export const createOrgSchema = z.object({ name: z.string().min(1).max(120) });
+export const addMemberSchema = z.object({
+  email: z.string().email(),
+  role: z.enum(['admin', 'member']).optional(),
+});
+export const activeOrgSchema = z.object({ organizationId: z.string().uuid() });
+
 export const brandingSchema = z.object({
   brandName: z.string().min(1).max(80).optional(),
   brandColor: z

@@ -1,6 +1,7 @@
 import { apiKeys, type Database, users } from '@penpact/db';
 import { sql } from 'drizzle-orm';
 import { generateApiKey } from '../lib/crypto.js';
+import { personalOrgId } from './organizations.js';
 
 /**
  * Find-or-create a user by email (case-insensitive) and mint a new API key.
@@ -34,9 +35,11 @@ export async function createApiKeyForEmail(
     }
   }
 
+  const organizationId = await personalOrgId(db, userId);
   const generated = generateApiKey('live');
   await db.insert(apiKeys).values({
     userId,
+    organizationId,
     name,
     prefix: generated.prefix,
     keyHash: generated.hash,
@@ -59,11 +62,20 @@ export async function mintApiKey(
   userId: string,
   name = 'default',
   mode: 'live' | 'test' = 'live',
+  organizationId?: string,
 ): Promise<MintedKey> {
+  const orgId = organizationId ?? (await personalOrgId(db, userId));
   const generated = generateApiKey(mode);
   const inserted = await db
     .insert(apiKeys)
-    .values({ userId, name, prefix: generated.prefix, keyHash: generated.hash, mode })
+    .values({
+      userId,
+      organizationId: orgId,
+      name,
+      prefix: generated.prefix,
+      keyHash: generated.hash,
+      mode,
+    })
     .returning({ id: apiKeys.id, createdAt: apiKeys.createdAt });
   const row = inserted[0];
   if (!row) {

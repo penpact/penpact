@@ -9,8 +9,11 @@ import { csrfProtect } from '../middleware/csrf.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { SESSION_COOKIE, sessionAuth } from '../middleware/session.js';
 import {
+  activeOrgSchema,
+  addMemberSchema,
   brandingSchema,
   createKeySchema,
+  createOrgSchema,
   createWebhookEndpointSchema,
   credentialsSchema,
   placeFieldsSchema,
@@ -31,6 +34,7 @@ import {
   resetPassword,
   revokeApiKey,
   type SessionResult,
+  setActiveOrg,
   setBranding,
   signUp,
   verifyEmail,
@@ -40,6 +44,13 @@ import { downloadDocument } from '../services/documents.js';
 import { buildResetEmail, buildVerifyEmail, sendEmail } from '../services/email.js';
 import { getEnvelope, type ListOptions, listEnvelopes } from '../services/envelopes.js';
 import { placeFields } from '../services/fields.js';
+import {
+  addMember,
+  createOrganization,
+  listMembers,
+  listUserOrgs,
+  removeMember,
+} from '../services/organizations.js';
 import {
   createEndpoint,
   deleteEndpoint,
@@ -147,7 +158,13 @@ api.get('/api-keys', async (c) => {
 
 api.post('/api-keys', validateJson(createKeySchema), async (c) => {
   const { name, mode } = c.req.valid('json');
-  const minted = await createApiKey(c.get('db'), c.get('userId'), name, mode);
+  const minted = await createApiKey(
+    c.get('db'),
+    c.get('userId'),
+    name,
+    mode,
+    c.get('organizationId'),
+  );
   // The full secret is returned exactly once.
   return c.json(minted, 201);
 });
@@ -159,6 +176,40 @@ api.delete('/api-keys/:id', async (c) => {
 
 api.get('/usage', async (c) => {
   return c.json(await getUsage(c.get('db'), c.get('userId')));
+});
+
+// ─── Organizations / teams ───
+api.get('/orgs', async (c) => {
+  return c.json({
+    data: await listUserOrgs(c.get('db'), c.get('userId')),
+    activeOrgId: c.get('organizationId'),
+  });
+});
+
+api.post('/orgs', validateJson(createOrgSchema), async (c) => {
+  const org = await createOrganization(c.get('db'), c.get('userId'), c.req.valid('json').name);
+  return c.json(org, 201);
+});
+
+api.get('/orgs/:id/members', async (c) => {
+  return c.json({ data: await listMembers(c.get('db'), c.get('userId'), c.req.param('id')) });
+});
+
+api.post('/orgs/:id/members', validateJson(addMemberSchema), async (c) => {
+  const { email, role } = c.req.valid('json');
+  const member = await addMember(c.get('db'), c.get('userId'), c.req.param('id'), email, role);
+  return c.json(member, 201);
+});
+
+api.delete('/orgs/:id/members/:userId', async (c) => {
+  await removeMember(c.get('db'), c.get('userId'), c.req.param('id'), c.req.param('userId'));
+  return c.body(null, 204);
+});
+
+api.post('/active-org', validateJson(activeOrgSchema), async (c) => {
+  const token = getCookie(c, SESSION_COOKIE) ?? '';
+  await setActiveOrg(c.get('db'), token, c.req.valid('json').organizationId);
+  return c.json({ ok: true });
 });
 
 // ─── White-label branding (free, applied to the signing experience) ───
@@ -247,7 +298,13 @@ api.get('/webhook-endpoints', async (c) => {
 api.post('/webhook-endpoints', validateJson(createWebhookEndpointSchema), async (c) => {
   const { url, description } = c.req.valid('json');
   // The signing secret is returned exactly once.
-  const created = await createEndpoint(c.get('db'), c.get('userId'), url, description);
+  const created = await createEndpoint(
+    c.get('db'),
+    c.get('userId'),
+    c.get('organizationId'),
+    url,
+    description,
+  );
   return c.json(created, 201);
 });
 
