@@ -1,0 +1,63 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+
+const posts = (await getCollection('blog')).sort(
+  (a, b) => new Date(b.data.publishedAt).getTime() - new Date(a.data.publishedAt).getTime(),
+);
+
+function fmt(d: string) {
+  return new Date(`${d}T00:00:00Z`).toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
+  });
+}
+
+const title = 'Penpact blog: e-signature API guides for developers';
+const description =
+  'Developer guides on embedding e-signatures, ESIGN and eIDAS compliance, and choosing an open-source e-signature API. From the team building Penpact.';
+---
+
+<Base title={title} description={description} path="/blog">
+  <section class="wrap head">
+    <p class="kicker">Blog</p>
+    <h1>E-signature engineering, written for developers</h1>
+    <p class="sub">
+      Practical guides on embedding signatures, the law behind them, and choosing
+      tools, from the team building the open-source Penpact API.
+    </p>
+  </section>
+
+  <section class="wrap">
+    <ul class="posts">
+      {posts.map((p) => (
+        <li class="post">
+          <a href={`/blog/${p.data.slug}`}>
+            <span class="cat">{p.data.category}</span>
+            <h2>{p.data.title}</h2>
+            <p class="excerpt">{p.data.excerpt}</p>
+            <p class="meta">{p.data.author} · <time datetime={p.data.publishedAt}>{fmt(p.data.publishedAt)}</time></p>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+</Base>
+
+<style>
+  .head { margin-top: 56px; text-align: center; }
+  .kicker { color: var(--brand-2); font-weight: 600; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 12px; }
+  h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.05; margin: 0 auto 16px; max-width: 18ch; }
+  .sub { color: var(--muted); max-width: 56ch; margin: 0 auto; font-size: 16.5px; }
+  .posts { list-style: none; padding: 0; margin: 44px auto 0; max-width: 760px; display: grid; gap: 14px; }
+  .post a {
+    display: block; text-decoration: none; color: inherit;
+    border: 1px solid var(--line); border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    padding: 24px 26px; transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+  .post a:hover { border-color: var(--line-2); transform: translateY(-2px); }
+  .cat { font-size: 12px; font-weight: 600; color: var(--brand-2); letter-spacing: 0.04em; text-transform: uppercase; }
+  .post h2 { font-size: 21px; margin: 8px 0 8px; letter-spacing: -0.02em; }
+  .excerpt { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 0 0 12px; }
+  .post .meta { color: var(--muted-2); font-size: 13px; margin: 0; }
+</style>

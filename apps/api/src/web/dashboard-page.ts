@@ -345,7 +345,12 @@ async function toggleEvents(id){
 async function loadStats(){
   const res = await api('/usage'); if(!res.ok) return;
   const u = await res.json();
+  var planLabel = (u.plan || 'free').charAt(0).toUpperCase() + (u.plan || 'free').slice(1);
+  var sent = u.sentThisMonth != null ? u.sentThisMonth : 0;
+  var quota = u.sendLimit == null ? (sent + ' sent · unlimited') : (sent + ' / ' + u.sendLimit + ' sent');
   $('stats').innerHTML =
+    stat(planLabel, 'Plan' + (u.plan === 'free' ? ' · <a href="https://penpact.dev/pricing" target="_blank" rel="noopener">upgrade</a>' : ''), true) +
+    stat(quota, 'Monthly sends', true) +
     stat(u.envelopesTotal, 'Envelopes (total)') +
     stat(u.completed != null ? u.completed : '-', 'Completed') +
     stat(u.pending != null ? u.pending : '-', 'In progress') +
@@ -353,7 +358,7 @@ async function loadStats(){
     stat(u.envelopesThisMonth, 'This month') +
     stat(u.activeKeys, 'Active keys');
 }
-function stat(n,l){ return '<div class="stat"><div class="n">'+esc(n)+'</div><div class="l">'+esc(l)+'</div></div>'; }
+function stat(n,l,htmlLabel){ return '<div class="stat"><div class="n">'+esc(n)+'</div><div class="l">'+(htmlLabel?l:esc(l))+'</div></div>'; }
 
 async function loadKeys(){
   const res = await api('/api-keys'); const card = $('keysCard');

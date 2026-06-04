@@ -1,0 +1,251 @@
+---
+import Base from '../layouts/Base.astro';
+
+const title = 'Pricing — Penpact e-signature API';
+const description =
+  'Self-host Penpact free under AGPL-3.0 or use the managed cloud. Usage-based pricing, no per-seat billing, with embedding and white-label included on every tier.';
+
+const tiers = [
+  {
+    name: 'Free',
+    price: '$0',
+    unit: 'forever',
+    tag: 'For building and small volume',
+    cta: { label: 'Get your API key →', href: 'https://api.penpact.dev/app' },
+    featured: false,
+    features: [
+      '50 sent documents / month',
+      '1 team member',
+      'Embedding + brand theming included',
+      'Unlimited test mode (sandbox)',
+      'Typed SDK, webhooks, templates',
+      'AI field detection (your own key)',
+      '“Secured by Penpact” on signing page',
+    ],
+  },
+  {
+    name: 'Pro',
+    price: '$19',
+    unit: '/ month',
+    tag: 'For products in production',
+    cta: { label: 'Start Pro →', href: 'https://api.penpact.dev/app' },
+    featured: true,
+    features: [
+      '500 sent documents / month',
+      'Up to 5 team members',
+      'Remove “Secured by Penpact”',
+      'Bulk send, reminders, conditional fields',
+      'Managed AI detection included',
+      'Email support',
+    ],
+  },
+  {
+    name: 'Scale',
+    price: '$0.12',
+    unit: '/ signed doc',
+    tag: 'Usage-based, no subscription',
+    cta: { label: 'Talk to us →', href: 'mailto:hello@penpact.dev?subject=Penpact%20Scale' },
+    featured: false,
+    features: [
+      'Everything in Pro',
+      'Unlimited team members',
+      'Pay only for what you send',
+      'Audit-log export',
+      'Priority support',
+    ],
+  },
+  {
+    name: 'Enterprise',
+    price: 'Custom',
+    unit: '',
+    tag: 'Trust, compliance, scale',
+    cta: { label: 'Contact sales →', href: 'mailto:hello@penpact.dev?subject=Penpact%20Enterprise' },
+    featured: false,
+    features: [
+      'Trusted / qualified signing certificate',
+      'SSO / SAML + SCIM provisioning',
+      'SLA + dedicated support',
+      'On-prem & compliance assistance',
+    ],
+  },
+];
+---
+
+<Base title={title} description={description} path="/pricing">
+  <section class="wrap head">
+    <p class="kicker">Pricing</p>
+    <h1>Free to self-host. <em class="display">Fair when you grow.</em></h1>
+    <p class="sub">
+      The full engine is open source under AGPL-3.0: run it yourself, unlimited,
+      for free. On the managed cloud, embedding and white-label theming are free on
+      every tier. You pay only for volume, team seats, and removing our attribution.
+    </p>
+    <div class="ea">
+      <span class="dot"></span>
+      Early access: the managed cloud is <strong>free while we grow</strong>. The
+      paid tiers below are what’s coming; self-host stays free forever.
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="tiers">
+      {tiers.map((t) => (
+        <div class={`tier${t.featured ? ' featured' : ''}`}>
+          {t.featured && <span class="ribbon">Most popular</span>}
+          <h3>{t.name}</h3>
+          <p class="tagline">{t.tag}</p>
+          <div class="price"><span class="amt">{t.price}</span><span class="unit">{t.unit}</span></div>
+          <a class={`btn ${t.featured ? 'btn-primary' : 'btn-ghost'} full`} href={t.cta.href}>{t.cta.label}</a>
+          <ul class="flist">
+            {t.features.map((f) => (
+              <li><span class="ck">✓</span>{f}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="wrap two">
+    <div class="panel">
+      <h3>Self-host — free, unlimited</h3>
+      <p>
+        Run the whole stack on your own infrastructure under AGPL-3.0. Unlimited
+        documents, every feature, your own AI key, your own storage. This is the
+        same engine that powers the cloud.
+      </p>
+      <a class="link" href="https://github.com/penpact/penpact">Read the source on GitHub →</a>
+    </div>
+    <div class="panel">
+      <h3>Commercial license</h3>
+      <p>
+        Want to embed the engine inside a closed-source product without the AGPL
+        obligations? A commercial license removes the copyleft requirement for your
+        application. Priced per company, from a flat annual fee.
+      </p>
+      <a class="link" href="mailto:hello@penpact.dev?subject=Penpact%20commercial%20license">Ask about a commercial license →</a>
+    </div>
+  </section>
+
+  <section class="wrap faq">
+    <h2>Questions</h2>
+    <div class="qa">
+      <div><strong>What counts as a “sent document”?</strong><p>Each envelope you send for signature, once. Drafts and test-mode sends never count toward the quota.</p></div>
+      <div><strong>Is white-label really free?</strong><p>Yes. Your logo and brand color apply on every tier, including Free. Paid tiers additionally remove the small “Secured by Penpact” line.</p></div>
+      <div><strong>Do you charge per seat?</strong><p>No per-seat tax. Plans include team members; signing is part of your product, not a per-user license.</p></div>
+      <div><strong>What about a trusted certificate?</strong><p>Self-host and the standard cloud use a digital seal suitable for SES-level signatures. A trusted / qualified certificate (AATL / QES) is part of Enterprise.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap final">
+    <h2 class="display">Start free. Upgrade when it pays for itself.</h2>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://api.penpact.dev/app">Get your API key →</a>
+      <a class="btn btn-ghost" href="https://github.com/penpact/penpact">★ Star on GitHub</a>
+    </div>
+  </section>
+
+  <script type="application/ld+json" set:html={JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: 'Penpact e-signature API',
+    description: 'Open-source, embeddable e-signature API. Self-host free under AGPL-3.0 or use the managed cloud with usage-based pricing and no per-seat billing.',
+    brand: { '@type': 'Brand', name: 'Penpact' },
+    offers: [
+      { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD', description: '50 sent documents/month, embedding and brand theming included.' },
+      { '@type': 'Offer', name: 'Pro', price: '19', priceCurrency: 'USD', description: '500 sent documents/month, remove attribution, up to 5 team members.' },
+      { '@type': 'Offer', name: 'Scale', price: '0.12', priceCurrency: 'USD', description: 'Usage-based, per signed document, unlimited team.' },
+    ],
+  })} />
+
+  <script type="application/ld+json" set:html={JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      { '@type': 'Question', name: 'How much does the Penpact e-signature API cost?', acceptedAnswer: { '@type': 'Answer', text: 'Self-hosting under AGPL-3.0 is free and unlimited. The managed cloud is usage-based with no per-seat billing: a free tier with 50 sent documents per month, Pro at $19/month for 500, and Scale at $0.12 per signed document. Embedding and brand theming are included on every tier.' } },
+      { '@type': 'Question', name: 'Does Penpact charge per seat?', acceptedAnswer: { '@type': 'Answer', text: 'No. There is no per-seat tax. Plans include team members; signing is part of your product, not a per-user license.' } },
+      { '@type': 'Question', name: 'Is white-label branding free?', acceptedAnswer: { '@type': 'Answer', text: 'Yes. Your logo and brand color apply on every tier, including Free. Paid tiers additionally remove the small "Secured by Penpact" line on the signing page.' } },
+      { '@type': 'Question', name: 'What counts as a sent document?', acceptedAnswer: { '@type': 'Answer', text: 'Each envelope you send for signature counts once. Drafts and test-mode sends never count toward your monthly quota.' } },
+    ],
+  })} />
+</Base>
+
+<style>
+  .head { margin-top: 64px; text-align: center; }
+  .kicker {
+    color: var(--brand-2); font-weight: 600; font-size: 13px;
+    letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 12px;
+  }
+  h1 { font-size: clamp(34px, 5.4vw, 56px); line-height: 1.04; margin: 0 auto 18px; max-width: 18ch; }
+  h1 em {
+    font-style: italic;
+    background: linear-gradient(100deg, var(--brand-2), #c9d8ff 60%, var(--brand-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .sub { color: var(--muted); max-width: 60ch; margin: 0 auto; font-size: 16.5px; }
+  .ea {
+    display: inline-flex; align-items: center; gap: 9px; margin: 24px auto 0;
+    border: 1px solid var(--line-2); background: rgba(70, 203, 139, 0.06);
+    color: var(--muted); border-radius: 999px; padding: 8px 16px; font-size: 13.5px;
+  }
+  .ea strong { color: var(--ink); font-weight: 600; }
+  .ea .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--seal); box-shadow: 0 0 10px var(--seal); }
+
+  section.wrap { margin-top: 40px; }
+  .tiers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; }
+  .tier {
+    position: relative; background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 24px 22px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+  .tier:hover { transform: translateY(-3px); border-color: var(--line-2); }
+  .tier.featured {
+    border-color: transparent;
+    background:
+      linear-gradient(180deg, var(--panel-2), var(--panel)) padding-box,
+      linear-gradient(150deg, var(--brand), transparent 55%) border-box;
+    box-shadow: 0 30px 70px -40px rgba(91, 140, 255, 0.6);
+  }
+  .ribbon {
+    position: absolute; top: -11px; left: 22px;
+    background: linear-gradient(180deg, var(--brand), #4b78ec); color: #fff;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+    padding: 4px 11px; border-radius: 999px;
+    box-shadow: 0 6px 16px -6px rgba(91, 140, 255, 0.7);
+  }
+  .tier h3 { margin: 0 0 4px; font-size: 19px; }
+  .tagline { margin: 0 0 16px; color: var(--muted-2); font-size: 13px; min-height: 34px; }
+  .price { display: flex; align-items: baseline; gap: 7px; margin-bottom: 18px; }
+  .price .amt { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; }
+  .price .unit { color: var(--muted); font-size: 14px; }
+  .btn.full { width: 100%; justify-content: center; }
+  .flist { list-style: none; padding: 18px 0 0; margin: 18px 0 0; border-top: 1px solid var(--line); display: grid; gap: 11px; }
+  .flist li { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .flist .ck { color: var(--seal); font-weight: 700; flex: none; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 64px; }
+  .panel {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 24px;
+  }
+  .panel h3 { margin: 0 0 10px; font-size: 18px; }
+  .panel p { margin: 0 0 14px; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+  .link { font-weight: 600; font-size: 14px; }
+
+  .faq { margin-top: 72px; }
+  .faq h2 { font-size: clamp(24px, 3.4vw, 32px); margin: 0 0 24px; }
+  .qa { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 40px; }
+  .qa strong { font-size: 15.5px; }
+  .qa p { margin: 7px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+
+  .final { text-align: center; margin-top: 80px; }
+  .final h2 { font-size: clamp(28px, 4.4vw, 44px); margin: 0 auto 22px; max-width: 20ch; }
+  .final .cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+  @media (max-width: 980px) {
+    .tiers { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .tiers, .two, .qa { grid-template-columns: 1fr; }
+  }
+</style>

@@ -66,6 +66,7 @@ export async function finalizeEnvelope(
       width: f.width,
       height: f.height,
       value: f.value,
+      type: f.type,
     })),
   );
   const finalBytes = await sealPdfWithPades(flattened);

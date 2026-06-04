@@ -5,10 +5,11 @@
  * password hashing, parameterized queries (Drizzle), generic sign-in errors
  * (no user enumeration), and only hashes of secrets are stored.
  */
-import { apiKeys, type Database, envelopes, sessions, users } from '@penpact/db';
+import { apiKeys, type Database, envelopes, organizations, sessions, users } from '@penpact/db';
 import { and, count, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { generateSessionToken, sha256Hex } from '../lib/crypto.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
+import { normalizePlan, type Plan, planLimits } from '../lib/plans.js';
 import { HttpProblem } from '../lib/problem.js';
 import { consumeAuthToken, createAuthToken } from './auth-tokens.js';
 import { type MintedKey, mintApiKey } from './keys.js';
@@ -299,27 +300,44 @@ export interface Usage {
   completed: number;
   pending: number;
   completionRate: number;
+  /** Billing plan of the active organization. */
+  plan: Plan;
+  /** Documents sent this month by the active org (counts toward the quota). */
+  sentThisMonth: number;
+  /** Monthly send cap for the plan; null means unlimited. */
+  sendLimit: number | null;
 }
 
-export async function getUsage(db: Database, userId: string): Promise<Usage> {
+const EMPTY_USAGE: Usage = {
+  envelopesTotal: 0,
+  envelopesThisMonth: 0,
+  activeKeys: 0,
+  completed: 0,
+  pending: 0,
+  completionRate: 0,
+  plan: 'free',
+  sentThisMonth: 0,
+  sendLimit: 50,
+};
+
+export async function getUsage(
+  db: Database,
+  userId: string,
+  activeOrgId?: string | null,
+): Promise<Usage> {
   const startOfMonth = new Date();
   startOfMonth.setUTCDate(1);
   startOfMonth.setUTCHours(0, 0, 0, 0);
 
   const orgIds = await accessibleOrgIds(db, userId);
   if (orgIds.length === 0) {
-    return {
-      envelopesTotal: 0,
-      envelopesThisMonth: 0,
-      activeKeys: 0,
-      completed: 0,
-      pending: 0,
-      completionRate: 0,
-    };
+    return { ...EMPTY_USAGE };
   }
   const inOrg = inArray(envelopes.organizationId, orgIds);
+  // Quota is per-org: count sends against the active org (or the first accessible one).
+  const billedOrgId = activeOrgId && orgIds.includes(activeOrgId) ? activeOrgId : orgIds[0];
 
-  const [total, month, keys, completed, pending] = await Promise.all([
+  const [total, month, keys, completed, pending, planRow, sent] = await Promise.all([
     db.select({ n: count() }).from(envelopes).where(inOrg),
     db
       .select({ n: count() })
@@ -337,10 +355,26 @@ export async function getUsage(db: Database, userId: string): Promise<Usage> {
       .select({ n: count() })
       .from(envelopes)
       .where(and(inOrg, inArray(envelopes.status, ['sent', 'viewed', 'partially_signed']))),
+    db
+      .select({ plan: organizations.plan })
+      .from(organizations)
+      .where(eq(organizations.id, billedOrgId as string))
+      .limit(1),
+    db
+      .select({ n: count() })
+      .from(envelopes)
+      .where(
+        and(
+          eq(envelopes.organizationId, billedOrgId as string),
+          gte(envelopes.sentAt, startOfMonth),
+        ),
+      ),
   ]);
 
   const total0 = total[0]?.n ?? 0;
   const completed0 = completed[0]?.n ?? 0;
+  const plan = normalizePlan(planRow[0]?.plan);
+  const limit = planLimits(plan).monthlySends;
   return {
     envelopesTotal: total0,
     envelopesThisMonth: month[0]?.n ?? 0,
@@ -348,6 +382,9 @@ export async function getUsage(db: Database, userId: string): Promise<Usage> {
     completed: completed0,
     pending: pending[0]?.n ?? 0,
     completionRate: total0 > 0 ? Math.round((completed0 / total0) * 100) : 0,
+    plan,
+    sentThisMonth: sent[0]?.n ?? 0,
+    sendLimit: Number.isFinite(limit) ? limit : null,
   };
 }
 

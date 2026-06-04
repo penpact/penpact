@@ -46,7 +46,8 @@ canvas{display:block}
   </select></label>
   <label class="muted">Signer <select id="signer"></select></label>
   <span class="muted">Click on the document to place a field.</span>
-  <button class="primary" id="save" style="margin-left:auto">Save fields</button>
+  <button id="ai" style="margin-left:auto" title="Let AI propose where signatures, names, and dates go">&#10024; Auto-detect with AI</button>
+  <button class="primary" id="save">Save fields</button>
   <span id="status" class="muted"></span>
 </header>
 <div id="stage"><p class="muted">Loading document…</p></div>
@@ -60,6 +61,7 @@ const $ = (id) => document.getElementById(id);
 const api = (p, opts) => fetch('/dashboard' + p, Object.assign({ headers: { 'content-type':'application/json' } }, opts));
 const SCALE = 1.3;
 const fields = []; // {page, type, signerId, x, y, w, h, el}  (x/y/w/h in PDF points)
+const textByPage = {}; // page -> [{str, x, w, yTop, h}] in PDF points, origin top-left
 
 async function boot(){
   if(!envelopeId){ $('stage').innerHTML = '<p class="muted">Missing ?envelope=&lt;id&gt;</p>'; return; }
@@ -87,13 +89,114 @@ async function boot(){
     wrap.appendChild(canvas);
     $('stage').appendChild(wrap);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    // Capture text positions (PDF points, origin top-left) so AI fields can snap to lines.
+    try {
+      const tc = await page.getTextContent();
+      const ph = page.getViewport({ scale: 1 }).height;
+      textByPage[p] = tc.items
+        .filter((i) => i.str && i.str.trim())
+        .map((i) => ({
+          str: i.str,
+          x: i.transform[4],
+          w: i.width || 0,
+          yTop: ph - i.transform[5] - (i.height || 0),
+          h: i.height || Math.hypot(i.transform[1] || 0, i.transform[3] || 0) || 10,
+        }));
+    } catch (e) { textByPage[p] = []; }
     wrap.addEventListener('click', (e) => onPlace(e, wrap, p));
   }
 }
 
+// Keywords that identify a labelled line for each field type.
+const LABEL_KEYWORDS = {
+  signature: ['signature', 'signed', 'sign here'],
+  initials: ['initial'],
+  name: ['name', 'printed name'],
+  date: ['date'],
+  email: ['email', 'e-mail'],
+  text: ['title', 'company', 'address'],
+};
+
+// Snap an AI proposal (PDF points) onto the document's matching label line. The LLM
+// gives an approximate position + a type; we use the type to pick the nearest line
+// whose label matches (e.g. a "signature" snaps to the closest "Signature:" line)
+// and place the field right after that label, on its baseline. Far more accurate
+// than the raw LLM coordinates, which only land in the right region.
+function snapToLine(p){
+  const items = textByPage[p.page] || [];
+  if(!items.length) return p;
+  const kws = LABEL_KEYWORDS[p.type] || [];
+  let best = null, bestD = 1e9;
+  // 1) nearest line whose label text matches this field type — within a TIGHT
+  //    window so a field never jumps to an identical label in another block.
+  for(const it of items){
+    const low = it.str.toLowerCase();
+    if(!kws.some((k) => low.includes(k))) continue;
+    const d = Math.abs(it.yTop - p.y);
+    if(d < bestD){ bestD = d; best = it; }
+  }
+  if(best && bestD <= 55){
+    p.y = Math.max(0, best.yTop + best.h - p.height);
+    // The label and its fill line may be one text run ("Signature: ____"); place
+    // the field just after the colon by estimating its x within the run.
+    const ci = best.str.indexOf(':');
+    p.x = ci >= 0 && best.str.length
+      ? best.x + best.w * ((ci + 1) / best.str.length) + 6
+      : best.x + best.w + 8;
+    return p;
+  }
+  // 2) fallback: vertical-only nudge to the nearest line, only if very close
+  best = null; bestD = 1e9;
+  for(const it of items){ const d = Math.abs(it.yTop - p.y); if(d < bestD){ bestD = d; best = it; } }
+  if(best && bestD <= 40){ p.y = Math.max(0, best.yTop + best.h - p.height); }
+  return p;
+}
+
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
 
+// Deterministic detection from the document's own "Label:" fill lines — far more
+// accurate than LLM coordinates on labelled contracts. Looks at the word before
+// the first colon on each text line; if it matches a field-type keyword, drops the
+// matching field right after the colon, on that line. Used first; AI is the
+// fallback for label-less (e.g. scanned/flat) documents.
+const FIELD_BOX = { signature:[200,32], initials:[80,28], name:[240,22], date:[150,22], email:[240,22], text:[240,22] };
+function detectFromLabels(){
+  const signerId = $('signer').value || null;
+  const out = [];
+  for(const pageStr of Object.keys(textByPage)){
+    const page = Number(pageStr);
+    for(const it of textByPage[page]){
+      const ci = it.str.indexOf(':');
+      if(ci < 0) continue;
+      const label = it.str.slice(0, ci).toLowerCase();
+      if(label.length === 0 || label.length > 24) continue;
+      let type = null;
+      for(const t of Object.keys(LABEL_KEYWORDS)){ if(LABEL_KEYWORDS[t].some((k) => label.includes(k))){ type = t; break; } }
+      if(!type) continue;
+      const dim = FIELD_BOX[type] || [180,24];
+      const x = it.x + it.w * ((ci + 1) / it.str.length) + 6;
+      const y = Math.max(0, it.yTop + it.h - dim[1]);
+      out.push({ page, type, signerId, x, y, width: dim[0], height: dim[1] });
+    }
+  }
+  return out;
+}
+
 const DEFAULTS = { signature:[180,48], initials:[80,40], name:[180,28], date:[120,28], text:[180,28], checkbox:[22,22] };
+
+// Draw a field box from PDF-point coordinates (origin top-left) and track it.
+function makeBox(wrap, page, type, signerId, xPt, yPt, wPt, hPt){
+  const box = document.createElement('div');
+  box.className = 'fieldBox';
+  box.style.left = (xPt*SCALE) + 'px'; box.style.top = (yPt*SCALE) + 'px';
+  box.style.width = (wPt*SCALE) + 'px'; box.style.height = (hPt*SCALE) + 'px';
+  box.innerHTML = '<span class="lbl">'+type+'</span><button class="x">×</button>';
+  wrap.appendChild(box);
+  const f = { page, type, signerId, x: xPt, y: yPt, w: wPt, h: hPt, el: box };
+  fields.push(f);
+  box.querySelector('.x').addEventListener('click', (ev) => { ev.stopPropagation(); box.remove(); fields.splice(fields.indexOf(f),1); });
+  return f;
+}
 
 function onPlace(e, wrap, page){
   if($('save').disabled) return;
@@ -103,16 +206,36 @@ function onPlace(e, wrap, page){
   const signerId = $('signer').value;
   if(!signerId){ $('status').textContent = 'Add a signer to the envelope first.'; return; }
   const [wPx, hPx] = DEFAULTS[type];
-  const box = document.createElement('div');
-  box.className = 'fieldBox';
-  box.style.left = px + 'px'; box.style.top = py + 'px';
-  box.style.width = wPx + 'px'; box.style.height = hPx + 'px';
-  box.innerHTML = '<span class="lbl">'+type+'</span><button class="x">×</button>';
-  wrap.appendChild(box);
-  const f = { page, type, signerId, x: px/SCALE, y: py/SCALE, w: wPx/SCALE, h: hPx/SCALE, el: box };
-  fields.push(f);
-  box.querySelector('.x').addEventListener('click', (ev) => { ev.stopPropagation(); box.remove(); fields.splice(fields.indexOf(f),1); });
+  makeBox(wrap, page, type, signerId, px/SCALE, py/SCALE, wPx/SCALE, hPx/SCALE);
 }
+
+$('ai').addEventListener('click', async () => {
+  if($('save').disabled) return;
+  $('ai').disabled = true; $('status').textContent = 'Detecting fields…';
+  const place = (list, source) => {
+    let added = 0;
+    for(const p of list){
+      const wrap = document.querySelector('.pageWrap[data-page="' + p.page + '"]');
+      if(!wrap) continue;
+      makeBox(wrap, p.page, p.type, p.signerId, p.x, p.y, p.width, p.height);
+      added++;
+    }
+    $('status').textContent = 'Placed ' + added + ' field(s) ' + source + ' for the first signer. Reassign or adjust, then Save.';
+    $('ai').disabled = false;
+  };
+  try{
+    // 1) accurate, deterministic placement from the document's "Label:" lines
+    const labelFields = detectFromLabels();
+    if(labelFields.length){ place(labelFields, 'from document labels'); return; }
+    // 2) fallback to AI for documents without recognisable labels (scanned/flat)
+    const res = await api('/envelopes/' + envelopeId + '/fields/auto-detect', { method:'POST' });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok){ $('status').textContent = 'Detection failed: ' + (j.detail || res.status); $('ai').disabled = false; return; }
+    const props = (j.data || []).map((p) => snapToLine(p));
+    if(props.length === 0){ $('status').textContent = 'No fields detected — place them manually (or set an AI provider key).'; $('ai').disabled = false; return; }
+    place(props, 'with AI');
+  }catch(e){ $('status').textContent = 'Detection error — try again.'; $('ai').disabled = false; }
+});
 
 $('save').addEventListener('click', async () => {
   if(fields.length === 0){ $('status').textContent = 'Place at least one field.'; return; }

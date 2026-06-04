@@ -8,7 +8,10 @@ interface FlattenField {
   width: number;
   height: number;
   value: string | null;
+  type?: string;
 }
+
+const TRUTHY_CHECKBOX = new Set(['true', 'on', 'yes', 'checked', '1', 'x']);
 
 /** Decode a `data:image/png;base64,...` value to bytes, or null if it is not one. */
 export function parsePngDataUrl(value: string): Uint8Array | null {
@@ -42,6 +45,19 @@ async function drawField(
 ): Promise<void> {
   if (field.value === null || field.value === '') return;
   const { height } = page.getSize();
+  // Checkboxes flatten to a mark, not the raw "true" string.
+  if (field.type === 'checkbox') {
+    if (!TRUTHY_CHECKBOX.has(field.value.trim().toLowerCase())) return;
+    const size = Math.min(16, Math.max(9, field.height));
+    page.drawText('X', {
+      x: field.x + Math.max(0, (field.width - size * 0.6) / 2),
+      y: height - field.y - field.height + (field.height - size) / 2,
+      size,
+      font,
+      color: rgb(0.05, 0.05, 0.05),
+    });
+    return;
+  }
   const png = parsePngDataUrl(field.value);
   if (png) {
     const image = await pdf.embedPng(png);

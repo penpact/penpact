@@ -16,6 +16,16 @@ export interface OrgSummary {
   role: string;
 }
 
+/** The org's billing plan string (defaults to 'free' if the org is missing). */
+export async function orgPlan(db: Database, orgId: string): Promise<string> {
+  const rows = await db
+    .select({ plan: organizations.plan })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  return rows[0]?.plan ?? 'free';
+}
+
 /** The organizations the user belongs to (ids only) — the access scope. */
 export async function accessibleOrgIds(db: Database, userId: string): Promise<string[]> {
   const rows = await db

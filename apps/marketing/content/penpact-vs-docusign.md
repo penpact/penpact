@@ -108,3 +108,32 @@ openness, price, and developer experience.
   ]
 }
 </script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How much does the DocuSign API cost compared to Penpact?",
+      "acceptedAnswer": { "@type": "Answer", "text": "DocuSign's API plans are priced per envelope and commonly include seat minimums, which gets expensive once signing is part of your core workflow. Penpact is usage-based with no seats, and AI field detection and SDK components are included rather than billed as add-ons. Self-hosting Penpact under AGPL-3.0 makes the software itself free; you pay only for your own infrastructure." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do you embed DocuSign and Penpact?",
+      "acceptedAnswer": { "@type": "Answer", "text": "DocuSign embeds primarily through a hosted, tokenized iframe that you style around. Penpact ships a typed TypeScript SDK and an embeddable signing experience meant to feel like part of your app, so your users never see a Penpact-branded page unless you want them to." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Penpact as compliant as DocuSign?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Both capture the four elements courts look for: intent, consent, attribution, and integrity, with an audit trail and a Certificate of Completion. DocuSign has more certifications and supports EU qualified electronic signatures (QES) under eIDAS. Penpact today targets simple electronic signatures (SES) under US ESIGN, UETA, and EU eIDAS, plus a PAdES digital signature on the sealed PDF." }
+    },
+    {
+      "@type": "Question",
+      "name": "When should you pick Penpact instead of the DocuSign API?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Pick Penpact if you are a developer embedding signing into your product, you want usage-based pricing, and self-hosting or reading the source matters to you. Pick DocuSign if you need a mature standalone product, qualified electronic signatures, or specific enterprise certifications right now." }
+    }
+  ]
+}
+</script>

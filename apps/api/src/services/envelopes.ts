@@ -1,12 +1,13 @@
 import { type Database, documents, envelopes, fields, signers, users } from '@penpact/db';
-import { and, desc, eq, inArray, lt, or } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, lt, or } from 'drizzle-orm';
 import { generateSigningToken, sha256Hex } from '../lib/crypto.js';
+import { planLimits, sendQuotaExceeded } from '../lib/plans.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { EnvelopeCreateInput } from '../schemas.js';
 import { requireDraftEnvelope, requireEnvelope } from './access.js';
 import { sendSigningInvite } from './email.js';
 import { recordEvent } from './events.js';
-import { accessibleOrgIds, personalOrgId } from './organizations.js';
+import { accessibleOrgIds, orgPlan, personalOrgId } from './organizations.js';
 import { activeOrder, isActiveSigner } from './routing.js';
 import { buildVoidedEvent, enqueueEnvelopeEvent } from './webhooks.js';
 
@@ -183,6 +184,40 @@ export async function createEnvelope(
   });
 }
 
+/** First instant of the current calendar month in UTC. */
+function startOfMonthUTC(): Date {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Enforce the org's monthly send quota before sending. Sends are counted by
+ * `sentAt` within the current UTC month. Unlimited plans and legacy envelopes
+ * without an org are not metered.
+ */
+async function enforceSendQuota(db: Database, organizationId: string | null): Promise<void> {
+  if (!organizationId) return;
+  const plan = await orgPlan(db, organizationId);
+  const limit = planLimits(plan).monthlySends;
+  if (!Number.isFinite(limit)) return;
+  const rows = await db
+    .select({ n: count() })
+    .from(envelopes)
+    .where(
+      and(eq(envelopes.organizationId, organizationId), gte(envelopes.sentAt, startOfMonthUTC())),
+    );
+  const sentThisMonth = rows[0]?.n ?? 0;
+  if (sendQuotaExceeded(plan, sentThisMonth)) {
+    throw new HttpProblem({
+      status: 402,
+      title: 'Quota exceeded',
+      detail: `Your ${plan} plan allows ${limit} sent documents per month. Upgrade your plan to send more.`,
+    });
+  }
+}
+
 /** Lock the document, transition draft → sent, and record one email_sent event per signer. */
 export async function sendEnvelope(
   db: Database,
@@ -191,6 +226,7 @@ export async function sendEnvelope(
   ctx: RequestContext,
 ): Promise<EnvelopeResponse> {
   const env = await requireDraftEnvelope(db, userId, envelopeId);
+  await enforceSendQuota(db, env.organizationId);
 
   const docRows = await db
     .select({ id: documents.id })

@@ -193,14 +193,14 @@ function showState(kind, big, sub){
         ? '<path class="mark" d="M32 51 L45 64 L70 38"></path>'
         : '<path class="mark" d="M37 37 L63 63 M63 37 L37 63"></path>') +
     '</svg></div>';
-  var brand = (session && session.branding && session.branding.name) ? esc(session.branding.name) : "Penpact";
+  var attribution = !(session && session.branding && session.branding.attribution === false);
   document.body.innerHTML =
     '<div class="state ' + (ok ? "ok" : "") + '">' +
       seal +
       '<div class="big">' + esc(big) + '</div>' +
       '<div class="lead">' + esc(sub || "") + '</div>' +
       (ok ? '<div class="sealed-chip">\\uD83D\\uDD12 Signed &amp; sealed</div>' : '') +
-      '<div class="poweredby">Secured by ' + brand + '</div>' +
+      (attribution ? '<div class="poweredby">Secured by Penpact</div>' : '') +
     '</div>';
 }
 

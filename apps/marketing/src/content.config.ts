@@ -17,4 +17,21 @@ const docs = defineCollection({
   }),
 });
 
-export const collections = { docs };
+// Blog posts live in ../blog as markdown with frontmatter + embedded JSON-LD,
+// rendered at /blog/<slug> by src/pages/blog/[...slug].astro.
+const blog = defineCollection({
+  loader: glob({ pattern: '*.md', base: './blog' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    slug: z.string(),
+    excerpt: z.string(),
+    author: z.string().default('Penpact Team'),
+    publishedAt: z.string(),
+    updatedAt: z.string().optional(),
+    category: z.string().default('Guide'),
+    keywords: z.array(z.string()).optional(),
+  }),
+});
+
+export const collections = { docs, blog };

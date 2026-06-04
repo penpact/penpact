@@ -137,7 +137,7 @@ async function callAnthropic(pdfBytes: Uint8Array): Promise<string> {
 /** Gemini (Google) — native PDF via inlineData. Raw REST, no extra SDK dependency. */
 export async function callGemini(pdfBytes: Uint8Array, fetchImpl: typeof fetch): Promise<string> {
   const key = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
-  const model = process.env.PENPACT_GEMINI_MODEL ?? 'gemini-2.0-flash';
+  const model = process.env.PENPACT_GEMINI_MODEL ?? 'gemini-2.5-flash';
   const res = await fetchImpl(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
     {
@@ -152,7 +152,14 @@ export async function callGemini(pdfBytes: Uint8Array, fetchImpl: typeof fetch):
             ],
           },
         ],
-        generationConfig: { temperature: 0, maxOutputTokens: 4096 },
+        // thinkingBudget 0 disables 2.5-flash's internal reasoning (not needed
+        // for structured extraction) so the full JSON array isn't truncated by
+        // thinking tokens; a larger output budget covers many-signature contracts.
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 8192,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     },
   );

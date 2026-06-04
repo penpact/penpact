@@ -47,7 +47,7 @@ async function boot(){
       '<label for="email">Email</label><input id="email" type="email" autocomplete="email">' +
       '<button id="go">Continue to sign</button>' +
       '<div class="err" id="err"></div>' +
-      '<div class="poweredby">Secured by Penpact</div>';
+      (meta.attribution === false ? '' : '<div class="poweredby">Secured by Penpact</div>');
     $('go').onclick = start;
     $('email').addEventListener('keydown', function(e){ if(e.key==='Enter') start(); });
   }catch(e){ $('root').innerHTML = '<p class="lead">Could not load this page. Try again.</p>'; }

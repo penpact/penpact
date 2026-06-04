@@ -41,6 +41,10 @@
       "import": "./dist/lib/password.js",
       "default": "./dist/lib/password.js"
     },
+    "./plans": {
+      "import": "./dist/lib/plans.js",
+      "default": "./dist/lib/plans.js"
+    },
     "./accounts": {
       "import": "./dist/services/accounts.js",
       "default": "./dist/services/accounts.js"

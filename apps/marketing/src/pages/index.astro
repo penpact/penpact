@@ -4,7 +4,7 @@ import Base from '../layouts/Base.astro';
 
 const title = 'Penpact, the open-source e-signature API for developers';
 const description =
-  'Penpact is an open-source, embeddable e-signature API. Self-host under AGPL-3.0 or use the managed cloud. Typed TypeScript SDK, AI field detection, audit trail, no per-seat billing.';
+  'Penpact is an open-source, embeddable e-signature API. Self-host under AGPL-3.0 or use the managed cloud. Typed SDK, AI field detection, no per-seat billing.';
 
 const quickstart = `import { PenpactClient } from '@penpact/sdk';
 
@@ -26,6 +26,28 @@ await penpact.placeFields(envelope.id, [
 await penpact.send(envelope.id);`;
 
 const trust = ['ESIGN / UETA consent', 'Append-only audit trail', 'PAdES digital seal', 'SHA-256 certificate'];
+
+// Capabilities strip — shown at the very top so it is immediately clear what
+// Penpact does. Icons are inline stroke SVGs (16px, currentColor).
+const icon = (paths: string) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+const caps = [
+  { label: 'Typed SDK', icon: icon('<path d="M8 9l-3 3 3 3M16 9l3 3-3 3M13 7l-2 10"/>') },
+  { label: 'AI field detection', icon: icon('<path d="M12 3l1.7 4.1L18 9l-4.3 1.9L12 15l-1.7-4.1L6 9l4.3-1.9z"/><path d="M18.5 14l.7 1.7 1.8.8-1.8.8-.7 1.7-.7-1.7-1.8-.8 1.8-.8z"/>') },
+  { label: 'Embeddable signing', icon: icon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 14h6"/>') },
+  { label: 'Drag-drop builder', icon: icon('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/><path d="M11 7h5a2 2 0 012 2v4"/>') },
+  { label: 'Templates & merge', icon: icon('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/>') },
+  { label: 'Bulk send', icon: icon('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>') },
+  { label: 'Audit trail', icon: icon('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>') },
+  { label: 'PAdES seal', icon: icon('<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/>') },
+  { label: 'Signer auth', icon: icon('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3M12 15v2"/>') },
+  { label: 'Webhooks', icon: icon('<path d="M13 3L4 14h7l-1 7 9-11h-7z"/>') },
+  { label: 'White-label', icon: icon('<path d="M12 3a9 9 0 100 18c1.6 0 2-1.2 1.2-2.2-.7-.9-.2-2.3 1-2.3H17a4 4 0 004-4c0-4.4-4-7.5-9-7.5z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="12" cy="8" r="1"/><circle cx="16" cy="11" r="1"/>') },
+  { label: 'Multi-language', icon: icon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18"/>') },
+  { label: 'Reminders', icon: icon('<path d="M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 004 0"/>') },
+  { label: 'Teams', icon: icon('<circle cx="9" cy="9" r="3"/><path d="M3 19a6 6 0 0112 0"/><path d="M16 7a3 3 0 010 6M21 19a5.5 5.5 0 00-4-5.3"/>') },
+  { label: 'Self-host', icon: icon('<rect x="4" y="5" width="16" height="6" rx="1.5"/><rect x="4" y="13" width="16" height="6" rx="1.5"/><path d="M8 8h.01M8 16h.01"/>') },
+];
 
 const features = [
   {
@@ -57,8 +79,31 @@ const features = [
 const steps = [
   ['Create an envelope', 'One call with the document name and signers.'],
   ['Upload & place fields', 'Send a PDF, then place fields by coordinate, in the visual builder, or let AI propose them.'],
-  ['Send', 'Each signer gets a link, accepts the ESIGN disclosure, and signs — typed, drawn, or with a step-up code.'],
+  ['Send', 'Each signer gets a link, accepts the ESIGN disclosure, and signs by typing, drawing, or entering a step-up code.'],
   ['Get a sealed PDF', 'Penpact flattens the values, seals the PDF, and writes a Certificate of Completion.'],
+];
+
+const faqs = [
+  {
+    q: 'What is Penpact?',
+    a: 'Penpact is an open-source e-signature API you embed in your own product. You create an envelope, upload a PDF, place fields, and send; signers consent and sign, and you get back a sealed, PAdES-signed PDF with an audit trail and a Certificate of Completion. Self-host it under AGPL-3.0 or use the managed cloud.',
+  },
+  {
+    q: 'Is Penpact a free DocuSign alternative?',
+    a: 'Yes. The core engine is open source under AGPL-3.0, so you can self-host it for free and read the source. The managed cloud is usage-based with no per-seat or per-page billing, and a generous free tier includes embedding and brand theming.',
+  },
+  {
+    q: 'Are signatures collected through Penpact legally binding?',
+    a: 'Penpact captures the four elements courts look for: intent, electronic-records consent under the US ESIGN Act, attribution by email and IP, and integrity via a SHA-256 hash plus a PAdES digital signature. It targets simple electronic signatures (SES) under US ESIGN, UETA, and EU eIDAS. It does not yet support EU qualified signatures (QES).',
+  },
+  {
+    q: 'How does AI field detection work?',
+    a: 'Point a vision model (Claude, Gemini, or GPT) at the PDF and Penpact proposes signature, name, and date fields for you to adjust in a drag-and-drop builder. When self-hosting, set a provider key to enable it; with no key the endpoint simply returns no proposals instead of failing.',
+  },
+  {
+    q: 'Can I self-host Penpact?',
+    a: 'Yes. Running docker compose up starts Postgres and the API and prints a working API key, so the first signed document takes minutes. Every document stays on your own infrastructure, under AGPL-3.0.',
+  },
 ];
 ---
 
@@ -80,6 +125,16 @@ const steps = [
     sameAs: 'https://github.com/penpact/penpact',
   })} />
 
+  <script type="application/ld+json" set:html={JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  })} />
+
   <section class="hero wrap">
     <a class="badge reveal" href="https://github.com/penpact/penpact">
       <span class="dot"></span> Open source · AGPL-3.0 · self-hostable
@@ -90,9 +145,16 @@ const steps = [
     </h1>
     <p class="sub reveal d2">
       The open-source e-signature engine you embed in your own product. Self-host
-      the whole stack or use the managed cloud — with a typed SDK, AI field
+      the whole stack or use the managed cloud, with a typed SDK, AI field
       detection, a real audit trail, and no per-seat billing.
     </p>
+    <ul class="caps reveal d3">
+      {caps.map((c) => (
+        <li class="cap">
+          <Fragment set:html={c.icon} />{c.label}
+        </li>
+      ))}
+    </ul>
     <div class="cta reveal d3">
       <a class="btn btn-primary" href="https://api.penpact.dev/app">Get your API key &rarr;</a>
       <a class="btn btn-ghost" href="https://github.com/penpact/penpact">★ Star on GitHub</a>
@@ -111,7 +173,7 @@ const steps = [
       </div>
       <Code code={quickstart} lang="ts" theme="poimandres" />
     </div>
-    <p class="editor-cap">From zero to a sent, sealed document — the whole flow, in one file.</p>
+    <p class="editor-cap">From zero to a sent, sealed document: the whole flow, in one file.</p>
   </section>
 
   <section class="wrap">
@@ -140,6 +202,19 @@ const steps = [
     </div>
   </section>
 
+  <section class="wrap">
+    <p class="kicker">Questions</p>
+    <h2>E-signature API FAQ</h2>
+    <div class="faq">
+      {faqs.map((f) => (
+        <details class="qa">
+          <summary>{f.q}</summary>
+          <p>{f.a}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
   <section class="wrap final">
     <h2 class="display">Read the source. Run it yourself.</h2>
     <p class="lead">
@@ -164,7 +239,7 @@ const steps = [
   .d3 { animation-delay: 0.18s; } .d4 { animation-delay: 0.24s; }
   @keyframes rise { to { opacity: 1; transform: none; } }
 
-  .hero { padding: 92px 24px 12px; text-align: center; }
+  .hero { padding: 40px 24px 12px; text-align: center; }
   .badge {
     display: inline-flex; align-items: center; gap: 8px;
     border: 1px solid var(--line-2); background: rgba(255,255,255,0.025);
@@ -192,6 +267,25 @@ const steps = [
   }
   .trust li { display: inline-flex; align-items: center; gap: 7px; }
   .trust .check { color: var(--seal); font-weight: 700; }
+
+  /* capabilities strip */
+  .caps {
+    list-style: none; padding: 0; margin: 4px auto 30px; max-width: 720px;
+    display: flex; flex-wrap: wrap; gap: 9px; justify-content: center;
+  }
+  .cap {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); background: rgba(255, 255, 255, 0.02);
+    border-radius: 999px; padding: 7px 14px 7px 12px;
+    font-size: 13px; font-weight: 500; color: var(--muted); cursor: default;
+    transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+  }
+  .cap:hover {
+    border-color: var(--brand); color: var(--ink);
+    background: rgba(91, 140, 255, 0.07); transform: translateY(-2px);
+  }
+  .cap :global(svg) { width: 16px; height: 16px; flex: none; color: var(--brand-2); }
+  .cap:hover :global(svg) { color: var(--brand-2); }
 
   /* editor */
   .editor-wrap { margin-top: 44px; }
@@ -256,6 +350,22 @@ const steps = [
   .card:hover::before { opacity: 1; }
   .card h3 { margin: 0 0 9px; font-size: 17.5px; }
   .card p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+
+  .faq { display: grid; gap: 10px; max-width: 760px; }
+  .qa {
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    padding: 2px 18px; transition: border-color 0.2s ease;
+  }
+  .qa[open] { border-color: var(--line-2); }
+  .qa summary {
+    cursor: pointer; list-style: none; padding: 15px 0; font-weight: 600;
+    font-size: 16px; display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  }
+  .qa summary::-webkit-details-marker { display: none; }
+  .qa summary::after { content: "+"; color: var(--brand-2); font-size: 20px; font-weight: 400; }
+  .qa[open] summary::after { content: "–"; }
+  .qa p { margin: 0 0 16px; color: var(--muted); font-size: 14.8px; line-height: 1.65; max-width: 68ch; }
 
   .final { text-align: center; }
   .final h2 { margin-inline: auto; font-size: clamp(30px, 5vw, 50px); }

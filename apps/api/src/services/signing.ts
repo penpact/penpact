@@ -1,8 +1,17 @@
 import { randomInt } from 'node:crypto';
-import { type Database, documents, envelopes, fields, signers, users } from '@penpact/db';
+import {
+  type Database,
+  documents,
+  envelopes,
+  fields,
+  organizations,
+  signers,
+  users,
+} from '@penpact/db';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { CONSENT_DISCLOSURE } from '../consent.js';
 import { sha256Hex } from '../lib/crypto.js';
+import { planLimits } from '../lib/plans.js';
 import { HttpProblem } from '../lib/problem.js';
 import type { CompleteInput, DeclineInput } from '../schemas.js';
 import type { Storage } from '../storage/index.js';
@@ -35,7 +44,13 @@ export interface SigningSession {
   /** When set, the signer must pass this challenge before the document is shown. */
   authRequired?: StepUpMethod;
   /** The sending account's white-label branding, applied to the signing UI. */
-  branding: { name: string | null; color: string | null; logoUrl: string | null };
+  branding: {
+    name: string | null;
+    color: string | null;
+    logoUrl: string | null;
+    /** Show the "Secured by Penpact" attribution (true on free plans). */
+    attribution: boolean;
+  };
   /** Signer-facing language (en, es, fr, de). */
   locale: string;
 }
@@ -221,7 +236,7 @@ export async function getSigningSession(
   }
   await requireSignerTurn(db, signer);
 
-  const branding = await loadBranding(db, envelope.userId);
+  const branding = await loadBranding(db, envelope.userId, envelope.organizationId);
 
   // Step-up auth gate: withhold the document until the challenge is passed.
   const method = stepUpMethod(signer);
@@ -308,17 +323,33 @@ export async function getSigningSession(
   };
 }
 
-/** The sending account's white-label branding for the signing UI. */
+/**
+ * The sending account's white-label branding for the signing UI. Name/color/logo
+ * are free on every plan; the "Secured by Penpact" attribution is shown unless
+ * the owning org is on a paid plan (resolved from the envelope's organization).
+ */
 async function loadBranding(
   db: Database,
   userId: string,
-): Promise<{ name: string | null; color: string | null; logoUrl: string | null }> {
+  organizationId: string | null,
+): Promise<SigningSession['branding']> {
   const rows = await db
     .select({ name: users.brandName, color: users.brandColor, logoUrl: users.brandLogoUrl })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  return rows[0] ?? { name: null, color: null, logoUrl: null };
+  const brand = rows[0] ?? { name: null, color: null, logoUrl: null };
+
+  let attribution = true;
+  if (organizationId) {
+    const org = await db
+      .select({ plan: organizations.plan })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+    attribution = planLimits(org[0]?.plan).attribution;
+  }
+  return { ...brand, attribution };
 }
 
 export async function acceptConsent(

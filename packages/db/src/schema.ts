@@ -476,6 +476,8 @@ export const organizations = pgTable(
     name: text('name').notNull(),
     /** The user who created the org (their personal workspace if backfilled). */
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    /** Billing plan: free | pro | scale | enterprise. Flipped by billing later. */
+    plan: text('plan').notNull().default('free'),
     ...timestamps,
   },
   (t) => [index('organizations_created_by_idx').on(t.createdBy)],

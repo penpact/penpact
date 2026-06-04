@@ -39,6 +39,7 @@ import {
   signUp,
   verifyEmail,
 } from '../services/accounts.js';
+import { autoDetectEnvelopeFields } from '../services/ai-fields.js';
 import { downloadCertificate, listEnvelopeEvents } from '../services/certificate.js';
 import { downloadDocument } from '../services/documents.js';
 import { buildResetEmail, buildVerifyEmail, sendEmail } from '../services/email.js';
@@ -175,7 +176,7 @@ api.delete('/api-keys/:id', async (c) => {
 });
 
 api.get('/usage', async (c) => {
-  return c.json(await getUsage(c.get('db'), c.get('userId')));
+  return c.json(await getUsage(c.get('db'), c.get('userId'), c.get('organizationId')));
 });
 
 // ─── Organizations / teams ───
@@ -288,6 +289,18 @@ api.post('/envelopes/:id/fields', validateJson(placeFieldsSchema), async (c) => 
     c.req.valid('json'),
   );
   return c.json({ data: created }, 201);
+});
+
+// AI-proposed field placements for the visual builder (cookie-authed mirror of
+// the /v1 route). Returns proposals only; the builder renders them for review.
+api.post('/envelopes/:id/fields/auto-detect', async (c) => {
+  const proposals = await autoDetectEnvelopeFields(
+    c.get('db'),
+    getStorage(),
+    c.get('userId'),
+    c.req.param('id'),
+  );
+  return c.json({ data: proposals });
 });
 
 // ─── Webhook endpoints + deliveries ───

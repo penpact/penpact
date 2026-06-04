@@ -11,6 +11,7 @@ import {
   documents,
   envelopes,
   fields,
+  organizations,
   signers,
   templateFields,
   templateRoles,
@@ -20,6 +21,7 @@ import {
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { PDFDocument } from 'pdf-lib';
 import { generateSigningToken, sha256HexBytes } from '../lib/crypto.js';
+import { planLimits } from '../lib/plans.js';
 import { HttpProblem } from '../lib/problem.js';
 import type {
   InstantiateInput,
@@ -438,13 +440,24 @@ export async function unpublishTemplate(db: Database, userId: string, id: string
 export async function getPublicTemplate(
   db: Database,
   slug: string,
-): Promise<{ name: string; documentName: string } | null> {
+): Promise<{ name: string; documentName: string; attribution: boolean } | null> {
   const rows = await db
-    .select({ name: templates.name, documentName: templates.documentName })
+    .select({
+      name: templates.name,
+      documentName: templates.documentName,
+      plan: organizations.plan,
+    })
     .from(templates)
+    .leftJoin(organizations, eq(organizations.id, templates.organizationId))
     .where(and(eq(templates.publicSlug, slug), eq(templates.isPublic, true)))
     .limit(1);
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    name: row.name,
+    documentName: row.documentName,
+    attribution: planLimits(row.plan).attribution,
+  };
 }
 
 export interface BulkSendResult {
