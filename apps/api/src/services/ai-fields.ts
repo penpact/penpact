@@ -18,6 +18,8 @@ export interface FieldProposal {
   required: boolean;
   aiDetected: true;
   value: null;
+  /** Which document in a multi-document envelope this field belongs to. */
+  documentId?: string;
 }
 
 const FIELD_TYPE_SET = new Set<string>(FIELD_TYPES);
@@ -367,13 +369,13 @@ export async function autoDetectEnvelopeFields(
 ): Promise<FieldProposal[]> {
   await requireDraftEnvelope(db, userId, envelopeId);
 
+  // All source documents in the envelope, in signing order (multi-document support).
   const docRows = await db
-    .select({ storageKey: documents.storageKey })
+    .select({ id: documents.id, storageKey: documents.storageKey })
     .from(documents)
     .where(and(eq(documents.envelopeId, envelopeId), eq(documents.isFinal, false)))
-    .limit(1);
-  const doc = docRows[0];
-  if (!doc) {
+    .orderBy(asc(documents.position), asc(documents.createdAt));
+  if (docRows.length === 0) {
     throw new HttpProblem({
       status: 409,
       title: 'Conflict',
@@ -386,24 +388,30 @@ export async function autoDetectEnvelopeFields(
     .from(signers)
     .where(eq(signers.envelopeId, envelopeId))
     .orderBy(asc(signers.routingOrder));
-
-  const pdfBytes = await storage.get(doc.storageKey);
   const signerIds = signerRows.map((s) => s.id);
   const primary = signerIds[0];
   if (!primary) return [];
 
-  // 1) Accurate, deterministic placement from the document's own labels.
-  let textByPage: Map<number, TextLine[]> | null = null;
-  try {
-    textByPage = await extractTextLines(pdfBytes);
-    const labelFields = detectFieldsFromLabels(textByPage, primary);
-    if (labelFields.length > 0) return labelFields;
-  } catch (err) {
-    logger.error('PDF text extraction failed', { err: String(err) });
+  // Detect fields in every document (across all pages) and tag each proposal
+  // with its documentId, so a multi-document envelope is fully covered.
+  const all: FieldProposal[] = [];
+  for (const doc of docRows) {
+    const pdfBytes = await storage.get(doc.storageKey);
+    let textByPage: Map<number, TextLine[]> | null = null;
+    try {
+      textByPage = await extractTextLines(pdfBytes);
+      const labelFields = detectFieldsFromLabels(textByPage, primary);
+      if (labelFields.length > 0) {
+        all.push(...labelFields.map((f) => ({ ...f, documentId: doc.id })));
+        continue;
+      }
+    } catch (err) {
+      logger.error('PDF text extraction failed', { documentId: doc.id, err: String(err) });
+    }
+    // AI fallback for a label-less (scanned/flat) document.
+    const aiFields = await proposeFields(pdfBytes, signerIds);
+    const snapped = textByPage ? aiFields.map((f) => snapToLine(f, textByPage)) : aiFields;
+    all.push(...snapped.map((f) => ({ ...f, documentId: doc.id })));
   }
-
-  // 2) Fall back to AI for label-less (scanned/flat) documents, snapping any
-  //    proposals onto matching lines when we did manage to read the text layer.
-  const aiFields = await proposeFields(pdfBytes, signerIds);
-  return textByPage ? aiFields.map((f) => snapToLine(f, textByPage)) : aiFields;
+  return all;
 }
