@@ -12,72 +12,124 @@ import { TRANSLATIONS } from '../lib/i18n.js';
 
 const STYLES = `
 :root {
-  --bg: #0b0c10; --panel: #15171e; --line: #262a35; --ink: #e8eaf0;
-  --muted: #9aa3b2; --brand: #5b8cff; --brand-ink: #fff; --ok: #3fb37f;
-  --danger: #e0556b; --field: #1d2029;
+  --bg: #0a0b0e; --bg-2: #0c0e13; --panel: #14161d; --panel-2: #181b23;
+  --line: #21242d; --line-2: #2c303b; --ink: #edeff5; --muted: #9298a6;
+  --muted-2: #6b7180; --brand: #5b8cff; --brand-ink: #fff; --ok: #46cb8b;
+  --danger: #e0556b; --field: #181b22; --radius: 12px;
+  --sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --serif: "Instrument Serif", Georgia, serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system,
-  BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg); color: var(--ink);
+  font-family: var(--sans); font-size: 15px; line-height: 1.55;
+  letter-spacing: -0.003em; -webkit-font-smoothing: antialiased;
+  background-image: radial-gradient(700px 380px at 78% -10%,
+    color-mix(in srgb, var(--brand) 16%, transparent), transparent 70%);
+  background-attachment: fixed;
 }
+::selection { background: color-mix(in srgb, var(--brand) 32%, transparent); color: #fff; }
 a { color: var(--brand); }
 header.top {
-  display: flex; align-items: center; gap: 10px; padding: 14px 20px;
-  border-bottom: 1px solid var(--line); background: var(--panel);
+  display: flex; align-items: center; gap: 12px; padding: 13px 22px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  backdrop-filter: saturate(150%) blur(10px);
 }
-.logo { font-weight: 700; letter-spacing: -0.02em; }
+.logo { font-weight: 800; letter-spacing: -0.03em; font-size: 16px; display: inline-flex; align-items: center; }
 .logo span { color: var(--brand); }
-.doc-name { color: var(--muted); font-size: 14px; }
-.layout { display: grid; grid-template-columns: 1fr 380px; min-height: calc(100vh - 53px); }
-.viewer { background: #06070a; overflow-y: auto; }
+.doc-name { color: var(--muted); font-size: 13.5px; }
+.layout { display: grid; grid-template-columns: 1fr 400px; min-height: calc(100vh - 53px); }
+.viewer { background: #07080b; overflow-y: auto; }
 .docframe { width: 100%; height: 92vh; border: 0; display: block; }
 .docframe + .docframe { border-top: 8px solid var(--bg); }
-.panel { border-left: 1px solid var(--line); background: var(--panel); padding: 22px; overflow-y: auto; }
-h2 { font-size: 17px; margin: 0 0 4px; }
-.lead { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
-.disclosure {
-  background: var(--field); border: 1px solid var(--line); border-radius: 8px;
-  padding: 12px 14px; max-height: 220px; overflow-y: auto; font-size: 13px;
-  color: var(--muted); white-space: pre-wrap; margin-bottom: 14px;
+.panel {
+  border-left: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  padding: 26px 24px; overflow-y: auto;
 }
-label.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
-label.check input { margin-top: 3px; }
-.field { margin-bottom: 14px; }
-.field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-.field input[type=text], .field input[type=date], .field input[type=email] {
+h2 { font-size: 19px; margin: 0 0 5px; letter-spacing: -0.02em; }
+.lead { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+.disclosure {
+  background: var(--field); border: 1px solid var(--line); border-radius: 10px;
+  padding: 13px 15px; max-height: 220px; overflow-y: auto; font-size: 12.5px;
+  line-height: 1.6; color: var(--muted); white-space: pre-wrap; margin-bottom: 16px;
+}
+label.check {
+  display: flex; gap: 11px; align-items: flex-start; font-size: 14px; cursor: pointer;
+  background: var(--field); border: 1px solid var(--line); border-radius: 10px;
+  padding: 13px 15px; transition: border-color 0.15s ease;
+}
+label.check:hover { border-color: var(--line-2); }
+label.check input { margin-top: 2px; accent-color: var(--brand); width: 16px; height: 16px; }
+.field { margin-bottom: 15px; }
+.field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 7px; font-weight: 500; }
+.field input, .field select {
   width: 100%; background: var(--field); border: 1px solid var(--line);
-  border-radius: 8px; color: var(--ink); padding: 10px 12px; font: inherit;
+  border-radius: 10px; color: var(--ink); padding: 11px 13px; font: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field input:focus, .field select:focus, #authCode:focus {
+  outline: 0; border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
+}
+#authCode {
+  width: 100%; background: var(--field); border: 1px solid var(--line);
+  border-radius: 10px; color: var(--ink); padding: 12px 14px; font: inherit;
+  letter-spacing: 0.04em;
 }
 .sig-preview {
-  background: #fff; color: #111; border-radius: 8px; padding: 10px 14px;
-  min-height: 56px; display: flex; align-items: center;
+  background: #fbfbfd; color: #111; border-radius: 10px; padding: 12px 16px;
+  min-height: 62px; display: flex; align-items: center;
   font-family: "Snell Roundhand", "Brush Script MT", "Segoe Script", cursive;
-  font-size: 30px; line-height: 1; margin-top: 6px; overflow: hidden;
+  font-size: 32px; line-height: 1; margin-top: 8px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
 }
-.sigtabs { display: flex; gap: 8px; margin: 6px 0; }
-.sigtabs button { background: var(--field); border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 14px; }
-.sigtabs button.active { color: var(--ink); border-color: var(--brand); }
-#sigCanvas { background: #fff; border: 1px solid var(--line); border-radius: 8px; touch-action: none; max-width: 100%; display: block; }
+.sigtabs { display: inline-flex; gap: 4px; margin: 8px 0; background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.sigtabs button { background: transparent; border: 0; color: var(--muted); border-radius: 8px; padding: 6px 16px; transition: all 0.15s ease; }
+.sigtabs button.active { color: var(--ink); background: var(--panel-2); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+#sigCanvas { background: #fbfbfd; border: 1px solid var(--line); border-radius: 10px; touch-action: none; max-width: 100%; display: block; }
 button {
-  font: inherit; border: 0; border-radius: 8px; padding: 11px 16px; cursor: pointer;
+  font: inherit; border: 0; border-radius: 10px; padding: 12px 16px; cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease, opacity 0.15s ease;
 }
-.btn-primary { background: var(--brand); color: var(--brand-ink); font-weight: 600; width: 100%; }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-ghost { background: transparent; color: var(--muted); width: 100%; margin-top: 8px; }
-.legal { color: var(--muted); font-size: 12px; margin: 14px 0 0; }
-.err { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 18px; }
-.state { max-width: 460px; margin: 80px auto; padding: 0 20px; text-align: center; }
-.state .big { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-.state.ok .big::before { content: ""; }
-.badge {
-  display: inline-block; width: 56px; height: 56px; border-radius: 50%;
-  margin-bottom: 16px; line-height: 56px; font-size: 28px;
+.btn-primary {
+  background: linear-gradient(180deg, var(--brand), color-mix(in srgb, var(--brand) 82%, #000));
+  color: var(--brand-ink); font-weight: 600; width: 100%;
+  box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--brand) 75%, transparent), inset 0 1px 0 rgba(255,255,255,0.22);
 }
-.badge.ok { background: rgba(63,179,127,0.15); color: var(--ok); }
-.badge.no { background: rgba(224,85,107,0.15); color: var(--danger); }
-.poweredby { color: var(--muted); font-size: 12px; margin-top: 22px; }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--muted); width: 100%; margin-top: 9px; border: 1px solid var(--line); }
+.btn-ghost:hover { color: var(--ink); border-color: var(--line-2); }
+.legal { color: var(--muted-2); font-size: 11.5px; margin: 15px 0 0; line-height: 1.5; }
+.err { color: var(--danger); font-size: 13px; margin-top: 11px; min-height: 18px; }
+
+/* Final states (signed / declined / unavailable) */
+.state { max-width: 440px; margin: 12vh auto; padding: 0 24px; text-align: center; animation: fadeUp 0.6s cubic-bezier(0.2,0.7,0.2,1) both; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.seal { position: relative; width: 92px; height: 92px; margin: 0 auto 22px; }
+.seal .ring { position: absolute; inset: 0; border-radius: 50%; }
+.seal.ok .ring { background: radial-gradient(circle, color-mix(in srgb, var(--ok) 22%, transparent), transparent 68%); animation: pulse 2.4s ease-out infinite; }
+.seal.no .ring { background: radial-gradient(circle, color-mix(in srgb, var(--danger) 18%, transparent), transparent 68%); }
+@keyframes pulse { 0% { transform: scale(0.85); opacity: 0.9; } 70% { transform: scale(1.15); opacity: 0; } 100% { opacity: 0; } }
+.seal svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.seal .circle { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 264; stroke-dashoffset: 264; animation: draw 0.7s ease forwards; }
+.seal .mark { fill: none; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw 0.45s 0.5s ease forwards; }
+.seal.ok .circle, .seal.ok .mark { stroke: var(--ok); }
+.seal.no .circle, .seal.no .mark { stroke: var(--danger); }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.state .big { font-family: var(--serif); font-weight: 400; font-size: 34px; letter-spacing: -0.01em; margin-bottom: 10px; }
+.state .lead { color: var(--muted); margin: 0 auto; max-width: 38ch; }
+.sealed-chip {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 20px;
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+  color: var(--ok); border-radius: 999px; padding: 7px 15px; font-size: 13px; font-weight: 500;
+}
+.poweredby { color: var(--muted-2); font-size: 12px; margin-top: 26px; }
+
 @media (max-width: 820px) {
   .layout { grid-template-columns: 1fr; }
   .viewer { height: 46vh; }
@@ -132,12 +184,23 @@ async function load(){
 }
 
 function showState(kind, big, sub){
+  var ok = kind === "ok";
+  var seal =
+    '<div class="seal ' + (ok ? "ok" : "no") + '"><div class="ring"></div>' +
+    '<svg viewBox="0 0 100 100" aria-hidden="true">' +
+      '<circle class="circle" cx="50" cy="50" r="42"></circle>' +
+      (ok
+        ? '<path class="mark" d="M32 51 L45 64 L70 38"></path>'
+        : '<path class="mark" d="M37 37 L63 63 M63 37 L37 63"></path>') +
+    '</svg></div>';
+  var brand = (session && session.branding && session.branding.name) ? esc(session.branding.name) : "Penpact";
   document.body.innerHTML =
-    '<div class="state ' + (kind==="ok"?"ok":"") + '">' +
-      '<div class="badge ' + (kind==="ok"?"ok":"no") + '">' + (kind==="ok"?"\\u2713":"\\u00d7") + '</div>' +
+    '<div class="state ' + (ok ? "ok" : "") + '">' +
+      seal +
       '<div class="big">' + esc(big) + '</div>' +
-      '<div class="lead">' + esc(sub||"") + '</div>' +
-      '<div class="poweredby">Secured by Penpact</div>' +
+      '<div class="lead">' + esc(sub || "") + '</div>' +
+      (ok ? '<div class="sealed-chip">\\uD83D\\uDD12 Signed &amp; sealed</div>' : '') +
+      '<div class="poweredby">Secured by ' + brand + '</div>' +
     '</div>';
 }
 
@@ -400,7 +463,11 @@ export function signPageHtml(token: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0b0e">
 <title>Sign document - Penpact</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Instrument+Serif&display=swap" rel="stylesheet">
 <style>${STYLES}</style>
 </head>
 <body>
