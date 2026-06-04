@@ -1,5 +1,5 @@
 import { type Database, documents, envelopes, fields, signers, users } from '@penpact/db';
-import { and, count, desc, eq, gte, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lt, or } from 'drizzle-orm';
 import { generateSigningToken, sha256Hex } from '../lib/crypto.js';
 import { planLimits, sendQuotaExceeded } from '../lib/plans.js';
 import { HttpProblem } from '../lib/problem.js';
@@ -47,6 +47,12 @@ export interface FieldResponse {
   condition: { fieldId: string; equals: string } | null;
 }
 
+export interface DocumentSummary {
+  id: string;
+  position: number;
+  pageCount: number | null;
+}
+
 export interface EnvelopeResponse {
   id: string;
   documentName: string;
@@ -59,6 +65,7 @@ export interface EnvelopeResponse {
   hashAlgorithm: string;
   signers: SignerResponse[];
   fields: FieldResponse[];
+  documents: DocumentSummary[];
   createdAt: string;
   sentAt: string | null;
   completedAt: string | null;
@@ -100,6 +107,7 @@ function toEnvelope(
   env: EnvelopeRow,
   signerRows: SignerRow[],
   fieldRows: FieldRow[],
+  docRows: Array<{ id: string; position: number; pageCount: number | null }> = [],
 ): EnvelopeResponse {
   return {
     id: env.id,
@@ -113,6 +121,10 @@ function toEnvelope(
     hashAlgorithm: env.hashAlgorithm,
     signers: signerRows.sort((a, b) => a.routingOrder - b.routingOrder).map(toSignerResponse),
     fields: fieldRows.map(toFieldResponse),
+    documents: docRows
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((d) => ({ id: d.id, position: d.position, pageCount: d.pageCount })),
     createdAt: env.createdAt.toISOString(),
     sentAt: iso(env.sentAt),
     completedAt: iso(env.completedAt),
@@ -412,11 +424,16 @@ export async function getEnvelope(
   if (!env) {
     return null;
   }
-  const [signerRows, fieldRows] = await Promise.all([
+  const [signerRows, fieldRows, docRows] = await Promise.all([
     db.select().from(signers).where(eq(signers.envelopeId, env.id)),
     db.select().from(fields).where(eq(fields.envelopeId, env.id)),
+    db
+      .select({ id: documents.id, position: documents.position, pageCount: documents.pageCount })
+      .from(documents)
+      .where(and(eq(documents.envelopeId, env.id), eq(documents.isFinal, false)))
+      .orderBy(asc(documents.position)),
   ]);
-  return toEnvelope(env, signerRows, fieldRows);
+  return toEnvelope(env, signerRows, fieldRows, docRows);
 }
 
 export interface ListOptions {

@@ -116,6 +116,7 @@ export async function downloadDocument(
   storage: Storage,
   userId: string,
   envelopeId: string,
+  documentId?: string,
 ): Promise<Uint8Array> {
   const orgIds = await accessibleOrgIds(db, userId);
   const ownRows =
@@ -130,10 +131,14 @@ export async function downloadDocument(
     throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'Envelope not found.' });
   }
 
+  // A specific source document (multi-document envelopes), or the final/primary one.
+  const where = documentId
+    ? and(eq(documents.envelopeId, envelopeId), eq(documents.id, documentId))
+    : eq(documents.envelopeId, envelopeId);
   const docRows = await db
     .select({ storageKey: documents.storageKey })
     .from(documents)
-    .where(eq(documents.envelopeId, envelopeId))
+    .where(where)
     .orderBy(desc(documents.isFinal), asc(documents.position), desc(documents.createdAt))
     .limit(1);
   const doc = docRows[0];

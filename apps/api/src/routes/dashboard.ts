@@ -250,6 +250,7 @@ api.get('/envelopes/:id/document', async (c) => {
     getStorage(),
     c.get('userId'),
     c.req.param('id'),
+    c.req.query('documentId'),
   );
   return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
 });
