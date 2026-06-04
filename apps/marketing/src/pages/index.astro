@@ -89,9 +89,9 @@ const steps = [
       <em class="display">inside your product.</em>
     </h1>
     <p class="sub reveal d2">
-      The open alternative to DocuSign. Self-host the whole stack or use the
-      managed cloud — with a typed SDK, AI field detection, a real audit trail,
-      and no per-seat billing.
+      The open-source e-signature engine you embed in your own product. Self-host
+      the whole stack or use the managed cloud — with a typed SDK, AI field
+      detection, a real audit trail, and no per-seat billing.
     </p>
     <div class="cta reveal d3">
       <a class="btn btn-primary" href="https://api.penpact.dev/app">Get your API key &rarr;</a>
@@ -138,25 +138,6 @@ const steps = [
         </div>
       ))}
     </div>
-  </section>
-
-  <section class="wrap compare">
-    <div>
-      <p class="kicker">Coming from DocuSign?</p>
-      <h2>The opposite stance, on purpose.</h2>
-      <p class="lead">
-        Per-envelope pricing, seat minimums, a generated SDK, and an iframe you
-        style around. Penpact is open source, with a typed SDK and usage-based
-        pricing — no seats, no per-page tax.
-      </p>
-      <a class="btn btn-ghost" href="/penpact-vs-docusign">See the full comparison &rarr;</a>
-    </div>
-    <ul class="links">
-      <li><a href="/open-source-docusign-alternative">Open-source DocuSign alternative</a></li>
-      <li><a href="/penpact-vs-docusign">Penpact vs the DocuSign API</a></li>
-      <li><a href="/embed-e-signatures-nextjs">Embed e-signatures in Next.js</a></li>
-      <li><a href="/embed-e-signatures-react">Add e-signatures to React</a></li>
-    </ul>
   </section>
 
   <section class="wrap final">
@@ -276,20 +257,6 @@ const steps = [
   .card h3 { margin: 0 0 9px; font-size: 17.5px; }
   .card p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
 
-  .compare { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 40px; align-items: start; }
-  .compare h2 { margin-bottom: 16px; }
-  .compare .btn { margin-top: 20px; }
-  .compare .links { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-  .compare .links a {
-    display: flex; align-items: center; justify-content: space-between;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
-    padding: 15px 18px; color: var(--ink); font-weight: 500;
-    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
-  }
-  .compare .links a::after { content: "→"; color: var(--muted-2); }
-  .compare .links a:hover { border-color: var(--brand); background: var(--panel-2); text-decoration: none; transform: translateX(3px); }
-  .compare .links a:hover::after { color: var(--brand-2); }
-
   .final { text-align: center; }
   .final h2 { margin-inline: auto; font-size: clamp(30px, 5vw, 50px); }
   .final .lead { margin-inline: auto; }
@@ -297,7 +264,6 @@ const steps = [
   .final .note { color: var(--muted-2); font-size: 13px; margin: 22px auto 0; max-width: 56ch; }
 
   @media (max-width: 820px) {
-    .compare { grid-template-columns: 1fr; gap: 26px; }
     .grid { grid-template-columns: 1fr; }
     section.wrap { margin-top: 72px; }
   }
