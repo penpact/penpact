@@ -1,0 +1,81 @@
+name: SDKs
+
+# Spec-first SDK factory. Validates the OpenAPI spec and generates the Python,
+# Go, and PHP clients from it (the runner has Java for openapi-generator, which
+# the maintainer's machine may lack). On a GitHub Release it publishes the
+# hand-crafted TypeScript SDK to npm (requires the NPM_TOKEN secret).
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/openapi.yaml', '.github/workflows/sdks.yml']
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate the OpenAPI spec
+        run: npx -y @redocly/cli@latest lint docs/openapi.yaml
+
+      - name: Generate the Python client
+        run: |
+          pip install --quiet openapi-python-client
+          rm -rf clients/python
+          python -m openapi_python_client generate \
+            --path docs/openapi.yaml --output-path clients/python --overwrite
+
+      - name: Generate the Go client
+        run: |
+          rm -rf clients/go
+          npx -y @openapitools/openapi-generator-cli generate \
+            -i docs/openapi.yaml -g go \
+            -o clients/go \
+            --additional-properties=packageName=penpact,isGoSubmodule=true
+
+      - name: Generate the PHP client
+        run: |
+          rm -rf clients/php
+          npx -y @openapitools/openapi-generator-cli generate \
+            -i docs/openapi.yaml -g php \
+            -o clients/php \
+            --additional-properties=invokerPackage=Penpact\\Sdk,composerVendorName=penpact,composerProjectName=sdk
+
+      - name: Upload generated clients
+        uses: actions/upload-artifact@v4
+        with:
+          name: penpact-sdks
+          path: clients/
+
+  publish-ts:
+    # Publishes @penpact/sdk on a GitHub Release. Needs the NPM_TOKEN secret.
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @penpact/sdk build
+      - run: pnpm --filter @penpact/sdk publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

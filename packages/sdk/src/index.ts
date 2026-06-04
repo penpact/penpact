@@ -5,7 +5,30 @@
  * responses, an injectable `fetch` (works in Node, browsers, edge, and tests),
  * and typed errors (RFC 7807).
  */
-import type { AuthMethod, EnvelopeStatus, FieldType, SignerStatus } from '@penpact/core';
+// Wire types are inlined so the SDK is a zero-dependency, standalone npm package.
+export type AuthMethod = 'email_link' | 'access_code' | 'email_otp' | 'sms_otp' | 'id_verification';
+export type EnvelopeStatus =
+  | 'draft'
+  | 'sent'
+  | 'viewed'
+  | 'partially_signed'
+  | 'completed'
+  | 'declined'
+  | 'voided'
+  | 'expired';
+export type SignerStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'declined';
+export type SignatureType = 'drawn' | 'typed' | 'adopted' | 'uploaded';
+export type FieldType =
+  | 'signature'
+  | 'initials'
+  | 'date'
+  | 'name'
+  | 'email'
+  | 'text'
+  | 'checkbox'
+  | 'dropdown'
+  | 'radio'
+  | 'stamp';
 
 export interface PenpactClientOptions {
   /** Secret API key (pk_live_… / pk_test_…). */
@@ -392,10 +415,3 @@ export class PenpactClient {
   }
 }
 
-export type {
-  AuthMethod,
-  EnvelopeStatus,
-  FieldType,
-  SignatureType,
-  SignerStatus,
-} from '@penpact/core';

@@ -36,6 +36,10 @@ tags:
     description: Place (or AI-detect) fields on an envelope's document.
   - name: Signing
     description: Recipient-facing signing session (authorized by signingToken).
+  - name: Templates
+    description: Reusable documents with roles + field placements; bulk send and public links.
+  - name: Public
+    description: No-auth self-serve signing from a published template.
 
 paths:
   /v1/envelopes:
@@ -363,6 +367,308 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
+  /v1/envelopes/generate:
+    post:
+      summary: Generate an envelope from a markdown template with variable merge
+      operationId: generateDocument
+      tags: [Envelopes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GenerateDocument" }
+      responses:
+        "201":
+          description: Draft envelope created from the rendered document.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/envelopes/{envelopeId}/signers/{signerId}/resend:
+    parameters:
+      - $ref: "#/components/parameters/EnvelopeId"
+      - name: signerId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Resend a signer's invitation
+      operationId: resendInvite
+      tags: [Envelopes]
+      responses:
+        "204": { description: Invitation re-sent. }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/sign/{signingToken}/document:
+    parameters:
+      - $ref: "#/components/parameters/SigningToken"
+      - name: documentId
+        in: query
+        schema: { type: string, format: uuid }
+        description: Specific source document (multi-document envelopes).
+    get:
+      summary: Download the document being signed
+      operationId: getSignerDocument
+      tags: [Signing]
+      security: []
+      responses:
+        "200":
+          description: The PDF.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/sign/{signingToken}/authenticate:
+    parameters:
+      - $ref: "#/components/parameters/SigningToken"
+    post:
+      summary: Pass a step-up auth challenge (access code or email OTP)
+      operationId: authenticateSigner
+      tags: [Signing]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Authenticate" }
+      responses:
+        "204": { description: Verified. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/templates:
+    post:
+      summary: Create a template
+      operationId: createTemplate
+      tags: [Templates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TemplateCreate" }
+      responses:
+        "201":
+          description: Template created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Template" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      summary: List templates
+      operationId: listTemplates
+      tags: [Templates]
+      responses:
+        "200":
+          description: Templates.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Template" }
+
+  /v1/templates/{templateId}:
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get a template
+      operationId: getTemplate
+      tags: [Templates]
+      responses:
+        "200":
+          description: Template.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Template" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      summary: Delete a template
+      operationId: deleteTemplate
+      tags: [Templates]
+      responses:
+        "204": { description: Deleted. }
+
+  /v1/templates/{templateId}/document:
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      summary: Upload the template's document
+      operationId: uploadTemplateDocument
+      tags: [Templates]
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Template with the document attached.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Template" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/templates/{templateId}/fields:
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Place fields on a template
+      operationId: placeTemplateFields
+      tags: [Templates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fields]
+              properties:
+                fields:
+                  type: array
+                  items: { $ref: "#/components/schemas/TemplateFieldCreate" }
+      responses:
+        "201":
+          description: Fields placed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/TemplateField" }
+
+  /v1/templates/{templateId}/envelopes:
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Create an envelope from a template
+      operationId: createEnvelopeFromTemplate
+      tags: [Templates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InstantiateTemplate" }
+      responses:
+        "201":
+          description: Draft envelope created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /v1/templates/{templateId}/publish:
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Publish a single-role template as a public signing link
+      operationId: publishTemplate
+      tags: [Templates]
+      responses:
+        "200":
+          description: Public link.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublishResult" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      summary: Unpublish a template
+      operationId: unpublishTemplate
+      tags: [Templates]
+      responses:
+        "204": { description: Unpublished. }
+
+  /v1/templates/{templateId}/bulk-send:
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Send a single-role template to many recipients
+      operationId: bulkSendTemplate
+      tags: [Templates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BulkSend" }
+          text/csv:
+            schema: { type: string, description: "CSV with a name,email header row." }
+      responses:
+        "202":
+          description: Batch processed (per-recipient results).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkSendResult" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/public/templates/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: Public template metadata (no auth)
+      operationId: getPublicTemplate
+      tags: [Public]
+      security: []
+      responses:
+        "200":
+          description: Template metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicTemplate" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/public/templates/{slug}/start:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      summary: Start a self-serve signing session from a public template (no auth)
+      operationId: startPublicSigning
+      tags: [Public]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublicStart" }
+      responses:
+        "200":
+          description: A fresh signing session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicStartResult" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
 webhooks:
   envelopeEvent:
     post:
@@ -402,7 +708,7 @@ components:
 
     AuthMethod:
       type: string
-      enum: [email_link, access_code, sms_otp, id_verification]
+      enum: [email_link, access_code, email_otp, sms_otp, id_verification]
 
     SignatureType:
       type: string
@@ -410,7 +716,19 @@ components:
 
     FieldType:
       type: string
-      enum: [signature, initials, date, name, email, text, checkbox]
+      enum: [signature, initials, date, name, email, text, checkbox, dropdown, radio, stamp]
+
+    Locale:
+      type: string
+      enum: [en, es, fr, de]
+
+    FieldCondition:
+      type: object
+      description: Show/require this field only when another field equals a value.
+      required: [fieldId, equals]
+      properties:
+        fieldId: { type: string, format: uuid }
+        equals: { type: string }
 
     SignerCreate:
       type: object
@@ -420,6 +738,11 @@ components:
         email: { type: string, format: email }
         routingOrder: { type: integer, minimum: 1, default: 1 }
         authMethod: { $ref: "#/components/schemas/AuthMethod" }
+        accessCode:
+          type: string
+          minLength: 4
+          maxLength: 64
+          description: Required when authMethod is access_code.
 
     Signer:
       type: object
@@ -438,12 +761,21 @@ components:
       properties:
         type: { $ref: "#/components/schemas/FieldType" }
         signerId: { type: string, format: uuid }
+        documentId:
+          type: string
+          format: uuid
+          description: Which source document the field is on (required for multi-document envelopes).
         page: { type: integer, minimum: 1 }
         x: { type: number, minimum: 0 }
         y: { type: number, minimum: 0 }
         width: { type: number, exclusiveMinimum: 0 }
         height: { type: number, exclusiveMinimum: 0 }
         required: { type: boolean, default: true }
+        options:
+          type: array
+          description: Choices for dropdown/radio fields.
+          items: { type: string }
+        condition: { $ref: "#/components/schemas/FieldCondition" }
 
     Field:
       allOf:
@@ -463,6 +795,7 @@ components:
         contentHash: { type: string, description: "SHA-256 hex of the bytes." }
         mimeType: { type: string }
         byteSize: { type: [integer, "null"] }
+        position: { type: integer, description: "0-based order within the envelope." }
         isFinal: { type: boolean }
         pageCount: { type: [integer, "null"] }
 
@@ -476,6 +809,31 @@ components:
           minItems: 1
           items: { $ref: "#/components/schemas/SignerCreate" }
         expiresAt: { type: [string, "null"], format: date-time }
+        reminderEveryHours:
+          type: integer
+          minimum: 1
+          maximum: 8760
+          description: Re-nudge unsigned signers every N hours.
+        locale: { $ref: "#/components/schemas/Locale" }
+
+    GenerateDocument:
+      type: object
+      required: [documentName, template, signers]
+      properties:
+        documentName: { type: string, minLength: 1, maxLength: 255 }
+        template:
+          type: string
+          description: "Markdown-ish template; supports # / ## headings, - bullets, and {{variables}}."
+        variables:
+          type: object
+          additionalProperties: { type: string }
+        signers:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/SignerCreate" }
+        expiresAt: { type: [string, "null"], format: date-time }
+        reminderEveryHours: { type: integer, minimum: 1, maximum: 8760 }
+        locale: { $ref: "#/components/schemas/Locale" }
 
     Envelope:
       type: object
@@ -483,6 +841,7 @@ components:
       properties:
         id: { type: string, format: uuid, readOnly: true }
         documentName: { type: string }
+        mode: { type: string, enum: [live, test], readOnly: true }
         status: { $ref: "#/components/schemas/EnvelopeStatus" }
         senderName: { type: string }
         senderEmail: { type: string, format: email }
@@ -519,6 +878,177 @@ components:
             version: { type: string }
             text: { type: string }
             hash: { type: string }
+        authRequired:
+          type: string
+          enum: [access_code, email_otp]
+          description: When present, the signer must pass this challenge before the document is shown.
+        locale: { $ref: "#/components/schemas/Locale" }
+        documents:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              documentUrl: { type: string, format: uri }
+              pageCount: { type: [integer, "null"] }
+        branding:
+          type: object
+          properties:
+            name: { type: [string, "null"] }
+            color: { type: [string, "null"] }
+            logoUrl: { type: [string, "null"] }
+
+    Authenticate:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 64 }
+
+    TemplateRole:
+      type: object
+      required: [id, name, routingOrder]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string }
+        routingOrder: { type: integer }
+
+    TemplateFieldCreate:
+      type: object
+      required: [type, roleId, page, x, y, width, height]
+      properties:
+        type: { $ref: "#/components/schemas/FieldType" }
+        roleId: { type: string, format: uuid }
+        page: { type: integer, minimum: 1 }
+        x: { type: number, minimum: 0 }
+        y: { type: number, minimum: 0 }
+        width: { type: number, exclusiveMinimum: 0 }
+        height: { type: number, exclusiveMinimum: 0 }
+        required: { type: boolean, default: true }
+        options:
+          type: array
+          items: { type: string }
+
+    TemplateField:
+      allOf:
+        - $ref: "#/components/schemas/TemplateFieldCreate"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+
+    TemplateCreate:
+      type: object
+      required: [name, documentName, roles]
+      properties:
+        name: { type: string }
+        documentName: { type: string }
+        roles:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string }
+              routingOrder: { type: integer, minimum: 1 }
+
+    Template:
+      type: object
+      required: [id, name, documentName, roles, fields, createdAt]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string }
+        documentName: { type: string }
+        storageKey: { type: [string, "null"], readOnly: true }
+        pageCount: { type: [integer, "null"] }
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/TemplateRole" }
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/TemplateField" }
+        createdAt: { type: string, format: date-time, readOnly: true }
+
+    InstantiateTemplate:
+      type: object
+      required: [signers]
+      properties:
+        signers:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [roleId, name, email]
+            properties:
+              roleId: { type: string, format: uuid }
+              name: { type: string }
+              email: { type: string, format: email }
+        documentName: { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    PublishResult:
+      type: object
+      required: [slug, publicUrl]
+      properties:
+        slug: { type: string }
+        publicUrl: { type: string, format: uri }
+
+    PublicTemplate:
+      type: object
+      required: [name, documentName]
+      properties:
+        name: { type: string }
+        documentName: { type: string }
+
+    PublicStart:
+      type: object
+      required: [name, email]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email }
+
+    PublicStartResult:
+      type: object
+      required: [signUrl, token]
+      properties:
+        signUrl: { type: string, format: uri }
+        token: { type: string }
+
+    BulkSend:
+      type: object
+      required: [recipients]
+      properties:
+        recipients:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            required: [name, email]
+            properties:
+              name: { type: string, minLength: 1, maxLength: 120 }
+              email: { type: string, format: email }
+
+    BulkSendResult:
+      type: object
+      required: [sent, failed, envelopes, errors]
+      properties:
+        sent: { type: integer }
+        failed: { type: integer }
+        envelopes:
+          type: array
+          items:
+            type: object
+            properties:
+              email: { type: string, format: email }
+              envelopeId: { type: string, format: uuid }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              email: { type: string, format: email }
+              error: { type: string }
 
     CursorPage:
       type: object

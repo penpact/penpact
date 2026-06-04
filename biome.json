@@ -6,7 +6,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/drizzle", "!apps/marketing", "!packages/signing-ui/demo"]
+    "includes": ["**", "!**/drizzle", "!apps/marketing", "!packages/signing-ui/demo", "!clients"]
   },
   "formatter": {
     "enabled": true,

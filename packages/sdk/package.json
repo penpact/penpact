@@ -1,9 +1,24 @@
 {
   "name": "@penpact/sdk",
-  "version": "0.0.0",
-  "description": "Official TypeScript SDK for the Penpact e-signature API.",
+  "version": "0.1.0",
+  "description": "Official TypeScript SDK for the Penpact e-signature API — the open, embeddable DocuSign alternative.",
   "license": "AGPL-3.0-only",
-  "private": true,
+  "homepage": "https://penpact.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/penpact/penpact.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": "https://github.com/penpact/penpact/issues",
+  "keywords": [
+    "e-signature",
+    "esignature",
+    "electronic-signature",
+    "docusign-alternative",
+    "pdf",
+    "signing",
+    "penpact"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -15,13 +30,15 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
   "scripts": {
     "build": "tsc -b",
     "dev": "tsc -b --watch"
-  },
-  "dependencies": {
-    "@penpact/core": "workspace:*"
   }
 }

@@ -123,11 +123,7 @@ importers:
         specifier: ^0.30.0
         version: 0.30.6
 
-  packages/sdk:
-    dependencies:
-      '@penpact/core':
-        specifier: workspace:*
-        version: link:../core
+  packages/sdk: {}
 
   packages/signing-ui:
     devDependencies:
