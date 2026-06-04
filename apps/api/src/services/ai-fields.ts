@@ -320,14 +320,49 @@ function detectFieldsFromLabels(
         }
       }
       if (!type || !FIELD_TYPE_SET.has(type)) continue;
-      const [w, h] = FIELD_BOX[type] ?? [180, 24];
+
       // The label and its underscores may be one text run; place after the colon.
       const x = line.x + line.w * ((ci + 1) / line.str.length) + 6;
-      const y = Math.max(0, line.yTop + line.h - h);
-      out.push({ type, signerId, page, x, y, width: w, height: h, required: true, aiDetected: true, value: null });
+      const box = fitToLine(line, lines, type);
+      out.push({
+        type,
+        signerId,
+        page,
+        x,
+        y: box.y,
+        width: (FIELD_BOX[type] ?? [180, 0])[0],
+        height: box.height,
+        required: true,
+        aiDetected: true,
+        value: null,
+      });
     }
   }
   return out;
+}
+
+/**
+ * Fit a field box to a single text line: bottom on the line's baseline, top
+ * capped just below the previous line so a (possibly tall) signature can never
+ * overlap the text above it. Returns top-left y + height in PDF points.
+ */
+function fitToLine(
+  line: TextLine,
+  lines: TextLine[],
+  type: FieldType,
+): { y: number; height: number } {
+  const baseline = line.yTop + line.h;
+  // Bottom of the nearest text line above this one (else assume one line of gap).
+  let aboveBottom = line.yTop - 26;
+  for (const o of lines) {
+    if (o === line) continue;
+    const ob = o.yTop + o.h;
+    if (ob <= line.yTop + 1 && ob > aboveBottom) aboveBottom = ob;
+  }
+  const topLimit = aboveBottom + 2; // never rise above the previous line
+  const desired = type === 'signature' || type === 'stamp' ? 24 : line.h + 7;
+  const top = Math.max(0, topLimit, baseline - desired);
+  return { y: top, height: Math.max(11, baseline - top) };
 }
 
 /** Snap a (possibly imprecise) AI proposal onto the nearest matching label line. */
@@ -348,9 +383,11 @@ function snapToLine(p: FieldProposal, textByPage: Map<number, TextLine[]>): Fiel
   }
   if (best && bestD <= 55) {
     const ci = best.str.indexOf(':');
+    const box = fitToLine(best, lines, p.type);
     return {
       ...p,
-      y: Math.max(0, best.yTop + best.h - p.height),
+      y: box.y,
+      height: box.height,
       x:
         ci >= 0 && best.str.length > 0
           ? best.x + best.w * ((ci + 1) / best.str.length) + 6
