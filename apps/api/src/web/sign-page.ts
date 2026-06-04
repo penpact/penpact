@@ -328,13 +328,13 @@ function renderSign(){
 
   html +=
     '<div class="err" id="err"></div>' +
-    '<button class="btn-primary" id="signBtn">' + esc(tr('signButton')) + '</button>' +
+    '<button class="btn-primary" id="signBtn">' + esc(tr('reviewButton')) + '</button>' +
     '<button class="btn-ghost" id="declineBtn">' + esc(tr('declineButton')) + '</button>' +
     '<p class="legal">' + esc(tr('legalLine')) + '</p>';
 
   $("panel").innerHTML = html;
   $("fullName").addEventListener("input", (e) => { $("sigPreview").textContent = e.target.value; });
-  $("signBtn").addEventListener("click", () => submitSign(myFields));
+  $("signBtn").addEventListener("click", () => reviewSign(myFields));
   $("declineBtn").addEventListener("click", submitDecline);
   // Conditional fields: re-evaluate visibility on any change.
   $("panel").addEventListener("input", () => recomputeConditions(myFields));
@@ -394,9 +394,9 @@ function recomputeConditions(myFields){
   }
 }
 
-async function submitSign(myFields){
-  const btn = $("signBtn"); const err = $("err");
-  err.textContent = "";
+// Validate, collect the values, then show a preview (do not submit yet).
+function reviewSign(myFields){
+  const err = $("err"); err.textContent = "";
   const fullName = $("fullName").value.trim();
   if (!fullName) { err.textContent = "Enter your full name to sign."; return; }
   const initials = initialsOf(fullName);
@@ -409,7 +409,6 @@ async function submitSign(myFields){
 
   const values = [];
   for (const f of myFields) {
-    // Skip fields hidden by an unmet condition.
     if (f.condition && fieldCurrentValue(f.condition.fieldId) !== f.condition.equals) continue;
     let v = "";
     if (f.type === "signature" || f.type === "stamp") v = signatureValue || fullName;
@@ -426,8 +425,82 @@ async function submitSign(myFields){
     if (f.required && !v) { err.textContent = "Please complete all required fields."; return; }
     if (v) values.push({ fieldId: f.id, value: v });
   }
+  renderReview(myFields, values);
+}
 
-  btn.disabled = true; btn.textContent = tr('signing');
+let _pdfjs = null;
+async function loadPdfjs(){
+  if (_pdfjs) return _pdfjs;
+  const m = await import("https://esm.sh/pdfjs-dist@4.7.76/build/pdf.min.mjs");
+  m.GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+  _pdfjs = m;
+  return m;
+}
+
+// Render the document(s) with the signer's values drawn in place, so they see
+// exactly how their signature will look before they finish.
+async function renderReview(myFields, values){
+  const valueById = {};
+  for (const v of values) valueById[v.fieldId] = v.value;
+
+  $("panel").innerHTML =
+    '<h2>' + esc(tr('reviewTitle')) + '</h2>' +
+    '<p class="lead">' + esc(tr('reviewHint')) + '</p>' +
+    '<div class="err" id="rerr"></div>' +
+    '<button class="btn-primary" id="finishBtn">' + esc(tr('finishButton')) + '</button>' +
+    '<button class="btn-ghost" id="editBtn">' + esc(tr('editButton')) + '</button>';
+  $("finishBtn").addEventListener("click", () => doSubmit(values));
+  $("editBtn").addEventListener("click", () => render());
+
+  const viewer = $("viewer");
+  viewer.innerHTML = '<div style="color:#9aa3b2;padding:40px;text-align:center">Preparing preview…</div>';
+  let pdfjs;
+  try { pdfjs = await loadPdfjs(); }
+  catch(e){ viewer.innerHTML = '<div style="color:#9aa3b2;padding:30px;text-align:center">Preview unavailable here, but your fields are ready — press ' + esc(tr('finishButton')) + '.</div>'; return; }
+
+  const docs = (session.documents && session.documents.length)
+    ? session.documents
+    : [{ id: null, documentUrl: api("/document") }];
+  viewer.innerHTML = "";
+  const vw = Math.max(320, viewer.clientWidth - 28);
+  for (const doc of docs){
+    let buf;
+    try { buf = await (await fetch(doc.documentUrl, { headers: { accept: "application/pdf" } })).arrayBuffer(); }
+    catch(e){ continue; }
+    const pdf = await pdfjs.getDocument({ data: buf }).promise;
+    for (let p=1; p<=pdf.numPages; p++){
+      const page = await pdf.getPage(p);
+      const scale = Math.min(1.6, vw / page.getViewport({ scale: 1 }).width);
+      const viewport = page.getViewport({ scale });
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "position:relative;margin:14px auto;width:" + viewport.width + "px;box-shadow:0 0 0 1px var(--line)";
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width; canvas.height = viewport.height; canvas.style.display = "block";
+      wrap.appendChild(canvas); viewer.appendChild(wrap);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      for (const f of myFields){
+        if (f.page !== p) continue;
+        if (doc.id && f.documentId && f.documentId !== doc.id) continue;
+        const val = valueById[f.id];
+        if (val == null || val === "") continue;
+        const box = document.createElement("div");
+        box.style.cssText = "position:absolute;left:" + (f.x*scale) + "px;top:" + (f.y*scale) + "px;width:" + (f.width*scale) + "px;height:" + (f.height*scale) + "px;display:flex;align-items:center;overflow:hidden;outline:1px dashed color-mix(in srgb,var(--brand) 55%,transparent)";
+        if (val.indexOf("data:image") === 0){
+          box.innerHTML = '<img src="' + val + '" style="max-width:100%;max-height:100%;object-fit:contain">';
+        } else {
+          const fs = Math.max(9, Math.min(15, f.height*scale*0.62));
+          box.innerHTML = '<span style="color:#111;font-size:' + fs + 'px;white-space:nowrap">' + esc(val) + '</span>';
+        }
+        wrap.appendChild(box);
+      }
+    }
+  }
+}
+
+async function doSubmit(values){
+  const btn = $("finishBtn"); const err = $("rerr");
+  if (err) err.textContent = "";
+  if (btn){ btn.disabled = true; btn.textContent = tr('signing'); }
   try {
     const res = await fetch(api("/complete"), {
       method: "POST", headers: { "content-type": "application/json" },
@@ -436,8 +509,8 @@ async function submitSign(myFields){
     if (!res.ok) throw new Error("HTTP " + res.status);
     showState("ok", "You're all set.", "This document has been signed. A copy and the certificate of completion will be available to the sender.");
   } catch (e) {
-    err.textContent = "Could not submit your signature. Please try again.";
-    btn.disabled = false; btn.textContent = "Sign document";
+    if (err) err.textContent = "Could not submit your signature. Please try again.";
+    if (btn){ btn.disabled = false; btn.textContent = tr('finishButton'); }
   }
 }
 

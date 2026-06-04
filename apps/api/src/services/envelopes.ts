@@ -33,6 +33,7 @@ export interface SignerResponse {
 
 export interface FieldResponse {
   id: string;
+  documentId: string;
   type: FieldRow['type'];
   signerId: string | null;
   page: number;
@@ -88,6 +89,7 @@ export function toSignerResponse(row: SignerRow): SignerResponse {
 export function toFieldResponse(row: FieldRow): FieldResponse {
   return {
     id: row.id,
+    documentId: row.documentId,
     type: row.type,
     signerId: row.signerId,
     page: row.page,

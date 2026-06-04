@@ -26,6 +26,11 @@ export interface Strings {
   draw: string;
   clear: string;
   signButton: string;
+  reviewButton: string;
+  reviewTitle: string;
+  reviewHint: string;
+  finishButton: string;
+  editButton: string;
   declineButton: string;
   signing: string;
   legalLine: string;
@@ -63,6 +68,11 @@ const en: Strings = {
   draw: 'Draw',
   clear: 'Clear',
   signButton: 'Sign document',
+  reviewButton: 'Review & sign',
+  reviewTitle: 'Review your signature',
+  reviewHint: 'This is exactly how your signature will appear on the document. Looks good?',
+  finishButton: 'Finish signing',
+  editButton: '\u2190 Edit signature',
   declineButton: 'Decline to sign',
   signing: 'Signing…',
   legalLine:
@@ -101,6 +111,11 @@ const es: Strings = {
   draw: 'Dibujar',
   clear: 'Borrar',
   signButton: 'Firmar documento',
+  reviewButton: 'Revisar y firmar',
+  reviewTitle: 'Revisa tu firma',
+  reviewHint: 'Así aparecerá exactamente tu firma en el documento. ¿Todo bien?',
+  finishButton: 'Finalizar firma',
+  editButton: '\u2190 Editar firma',
   declineButton: 'Rechazar la firma',
   signing: 'Firmando…',
   legalLine:
@@ -140,6 +155,12 @@ const fr: Strings = {
   draw: 'Dessiner',
   clear: 'Effacer',
   signButton: 'Signer le document',
+  reviewButton: 'Vérifier et signer',
+  reviewTitle: 'Vérifiez votre signature',
+  reviewHint:
+    'Voici exactement comment votre signature apparaîtra sur le document. C\u2019est bon\u00a0?',
+  finishButton: 'Terminer la signature',
+  editButton: '\u2190 Modifier la signature',
   declineButton: 'Refuser de signer',
   signing: 'Signature…',
   legalLine:
@@ -181,6 +202,11 @@ const de: Strings = {
   draw: 'Zeichnen',
   clear: 'Löschen',
   signButton: 'Dokument unterschreiben',
+  reviewButton: 'Prüfen & unterschreiben',
+  reviewTitle: 'Unterschrift prüfen',
+  reviewHint: 'So erscheint Ihre Unterschrift im Dokument. Sieht gut aus?',
+  finishButton: 'Unterschrift abschließen',
+  editButton: '\u2190 Unterschrift ändern',
   declineButton: 'Unterschrift ablehnen',
   signing: 'Wird unterschrieben…',
   legalLine:
