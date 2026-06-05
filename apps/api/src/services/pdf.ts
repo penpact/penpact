@@ -58,6 +58,20 @@ async function drawField(
     });
     return;
   }
+  // Attachment fields render a fixed ASCII label (the uploaded file itself is
+  // appended to the packet); never draw the raw filename, which may contain
+  // glyphs the standard font cannot encode.
+  if (field.type === 'attachment') {
+    const size = Math.min(11, Math.max(8, field.height * 0.62));
+    page.drawText('See attached', {
+      x: field.x + 2,
+      y: height - field.y - field.height + (field.height - size) / 2,
+      size,
+      font,
+      color: rgb(0.2, 0.22, 0.3),
+    });
+    return;
+  }
   const png = parsePngDataUrl(field.value);
   if (png) {
     const image = await pdf.embedPng(png);
@@ -80,7 +94,10 @@ async function drawField(
     return;
   }
   const size = Math.min(14, Math.max(8, field.height * 0.6));
-  page.drawText(field.value, {
+  // The standard PDF fonts are WinAnsi; replace code points they cannot encode
+  // so an unexpected glyph in a free-text value can never crash the seal.
+  const safe = field.value.replace(/[^\u0020-\u00FF]/g, '?');
+  page.drawText(safe, {
     x: field.x,
     y: height - field.y - field.height + (field.height - size) / 2,
     size,
@@ -185,4 +202,61 @@ function drawLine(
   font: PDFFont,
 ): void {
   page.drawText(text, { x, y, size, font, color: rgb(0.1, 0.1, 0.1) });
+}
+
+export interface AttachmentFile {
+  bytes: Uint8Array;
+  contentType: string;
+  filename: string;
+}
+
+/**
+ * Append signer-uploaded attachments to the end of the sealed packet so the
+ * completed PDF carries its supporting files. PDFs are merged page-for-page;
+ * images get a captioned full page. Unreadable files are skipped, never fatal.
+ */
+export async function appendAttachmentsToPdf(
+  baseBytes: Uint8Array,
+  files: AttachmentFile[],
+): Promise<Uint8Array> {
+  if (!files.length) return baseBytes;
+  const pdf = await PDFDocument.load(baseBytes);
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  for (const f of files) {
+    try {
+      if (f.contentType === 'application/pdf') {
+        const src = await PDFDocument.load(f.bytes);
+        const copied = await pdf.copyPages(src, src.getPageIndices());
+        for (const pg of copied) pdf.addPage(pg);
+      } else if (f.contentType === 'image/png' || f.contentType === 'image/jpeg') {
+        const img =
+          f.contentType === 'image/png' ? await pdf.embedPng(f.bytes) : await pdf.embedJpg(f.bytes);
+        const page = pdf.addPage([612, 792]);
+        const margin = 48;
+        const capH = 26;
+        const maxW = 612 - margin * 2;
+        const maxH = 792 - margin * 2 - capH;
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        const caption = `Attachment: ${f.filename}`.replace(/[^\x20-\x7E]/g, '_');
+        page.drawText(caption, {
+          x: margin,
+          y: 792 - margin,
+          size: 11,
+          font,
+          color: rgb(0.1, 0.1, 0.12),
+        });
+        page.drawImage(img, {
+          x: margin + (maxW - w) / 2,
+          y: margin + (maxH - h) / 2,
+          width: w,
+          height: h,
+        });
+      }
+    } catch {
+      // Skip a single unreadable/corrupt attachment rather than fail the seal.
+    }
+  }
+  return pdf.save();
 }

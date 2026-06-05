@@ -11,6 +11,7 @@ import { apiKeyAuth } from '../middleware/auth.js';
 import { idempotency } from '../middleware/idempotency.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import {
+  attachmentSchema,
   authenticateSchema,
   bulkSendSchema,
   completeSchema,
@@ -48,6 +49,7 @@ import {
   getSignerDocument,
   getSigningSession,
   previewSigning,
+  uploadAttachment,
 } from '../services/signing.js';
 import {
   bulkSendTemplate,
@@ -260,6 +262,19 @@ signRoute.post('/:token/preview', validateJson(completeSchema), async (c) => {
     c.req.valid('json').fields,
   );
   return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
+});
+
+// Signer uploads a file against one of their attachment fields.
+signRoute.post('/:token/attachment', validateJson(attachmentSchema), async (c) => {
+  return c.json(
+    await uploadAttachment(
+      c.get('db'),
+      getStorage(),
+      c.req.param('token'),
+      c.req.valid('json'),
+      reqCtx(c),
+    ),
+  );
 });
 
 signRoute.post('/:token/complete', validateJson(completeSchema), async (c) => {

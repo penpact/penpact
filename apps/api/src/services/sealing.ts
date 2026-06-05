@@ -1,10 +1,18 @@
-import { certificates, type Database, documents, envelopes, fields, signers } from '@penpact/db';
+import {
+  attachments,
+  certificates,
+  type Database,
+  documents,
+  envelopes,
+  fields,
+  signers,
+} from '@penpact/db';
 import { and, asc, eq } from 'drizzle-orm';
 import { sha256HexBytes } from '../lib/crypto.js';
 import type { Storage } from '../storage/index.js';
 import { buildCertificatePayload, loadEvents } from './certificate.js';
 import { sealPdfWithPades } from './pades.js';
-import { buildCertificatePdf, buildMergedFinalPdf } from './pdf.js';
+import { appendAttachmentsToPdf, buildCertificatePdf, buildMergedFinalPdf } from './pdf.js';
 
 /**
  * Produce the immutable final artifacts once every signer has signed:
@@ -69,7 +77,22 @@ export async function finalizeEnvelope(
       type: f.type,
     })),
   );
-  const finalBytes = await sealPdfWithPades(flattened);
+  // Append signer-uploaded attachments to the packet before sealing.
+  const attachmentRows = await db
+    .select()
+    .from(attachments)
+    .where(eq(attachments.envelopeId, envelopeId))
+    .orderBy(asc(attachments.createdAt));
+  const attachmentFiles = await Promise.all(
+    attachmentRows.map(async (a) => ({
+      bytes: await storage.get(a.storageKey),
+      contentType: a.contentType,
+      filename: a.filename,
+    })),
+  );
+  const withAttachments = await appendAttachmentsToPdf(flattened, attachmentFiles);
+
+  const finalBytes = await sealPdfWithPades(withAttachments);
   const finalHash = sha256HexBytes(finalBytes);
   const finalKey = `envelopes/${envelopeId}/final.pdf`;
   await storage.put(finalKey, finalBytes, 'application/pdf');

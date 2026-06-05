@@ -351,6 +351,25 @@ export const fields = pgTable(
   ],
 );
 
+// ─── attachments (files a signer uploads against an attachment field) ───
+export const attachments = pgTable(
+  'attachments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    envelopeId: uuid('envelope_id')
+      .notNull()
+      .references(() => envelopes.id, { onDelete: 'cascade' }),
+    signerId: uuid('signer_id'),
+    fieldId: uuid('field_id'),
+    filename: text('filename').notNull(),
+    contentType: text('content_type').notNull(),
+    storageKey: text('storage_key').notNull(),
+    byteSize: integer('byte_size').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('attachments_envelope_idx').on(t.envelopeId)],
+);
+
 // ─── templates (reusable document + roles + field placements) ───
 export const templates = pgTable(
   'templates',

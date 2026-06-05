@@ -105,6 +105,16 @@ export const completeSchema = z.object({
     .default([]),
 });
 
+export const ATTACHMENT_CONTENT_TYPES = ['application/pdf', 'image/png', 'image/jpeg'] as const;
+
+export const attachmentSchema = z.object({
+  fieldId: z.string().uuid(),
+  filename: z.string().min(1).max(255),
+  contentType: z.enum(ATTACHMENT_CONTENT_TYPES),
+  // base64 (optionally a data: URL); ~14 MB of binary fits in the 20 MB cap.
+  data: z.string().min(1).max(20_000_000),
+});
+
 export const declineSchema = z.object({
   reason: z.string().max(500).optional(),
 });
@@ -160,6 +170,7 @@ export type InstantiateInput = z.infer<typeof instantiateTemplateSchema>;
 
 export type CompleteInput = z.infer<typeof completeSchema>;
 export type DeclineInput = z.infer<typeof declineSchema>;
+export type AttachmentInput = z.infer<typeof attachmentSchema>;
 
 // ─── Dashboard auth ───
 export const credentialsSchema = z.object({

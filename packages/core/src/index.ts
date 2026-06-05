@@ -59,6 +59,7 @@ export const FIELD_TYPES = [
   'dropdown',
   'radio',
   'stamp',
+  'attachment',
 ] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 

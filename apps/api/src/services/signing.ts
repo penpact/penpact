@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import {
+  attachments,
   type Database,
   documents,
   envelopes,
@@ -13,7 +14,7 @@ import { CONSENT_DISCLOSURE } from '../consent.js';
 import { sha256Hex } from '../lib/crypto.js';
 import { planLimits } from '../lib/plans.js';
 import { HttpProblem } from '../lib/problem.js';
-import type { CompleteInput, DeclineInput } from '../schemas.js';
+import type { AttachmentInput, CompleteInput, DeclineInput } from '../schemas.js';
 import type { Storage } from '../storage/index.js';
 import { buildOtpEmail, sendEmail, sendSigningInvite } from './email.js';
 import {
@@ -410,6 +411,97 @@ export async function acceptConsent(
       metadata: { hash: CONSENT_DISCLOSURE.hash },
     });
   });
+}
+
+/**
+ * Store a file a signer uploaded against one of their `attachment` fields. The
+ * file is appended to the sealed packet at completion. Re-uploading the same
+ * field overwrites the previous file (one attachment per field per signer).
+ */
+export async function uploadAttachment(
+  db: Database,
+  storage: Storage,
+  token: string,
+  input: AttachmentInput,
+  ctx: RequestContext,
+): Promise<{ id: string; filename: string }> {
+  const { signer, envelope } = await loadByToken(db, token);
+  if (envelopeClosed(envelope)) gone();
+  requireAuthPassed(signer);
+
+  const [field] = await db
+    .select()
+    .from(fields)
+    .where(and(eq(fields.id, input.fieldId), eq(fields.envelopeId, envelope.id)))
+    .limit(1);
+  if (!field || field.signerId !== signer.id || field.type !== 'attachment') {
+    throw new HttpProblem({
+      status: 422,
+      title: 'Validation Error',
+      detail: 'That attachment field is not assigned to you.',
+    });
+  }
+
+  const comma = input.data.indexOf(',');
+  const b64 =
+    input.data.startsWith('data:') && comma >= 0 ? input.data.slice(comma + 1) : input.data;
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(Buffer.from(b64, 'base64'));
+  } catch {
+    throw new HttpProblem({ status: 422, title: 'Validation Error', detail: 'Invalid file data.' });
+  }
+  const MAX_BYTES = 10 * 1024 * 1024;
+  if (bytes.length === 0 || bytes.length > MAX_BYTES) {
+    throw new HttpProblem({
+      status: 422,
+      title: 'Validation Error',
+      detail: 'The file is empty or larger than 10 MB.',
+    });
+  }
+
+  const storageKey = `envelopes/${envelope.id}/attachments/${field.id}-${signer.id}`;
+  await storage.put(storageKey, bytes, input.contentType);
+  // One attachment per (field, signer): replace any prior row.
+  await db
+    .delete(attachments)
+    .where(
+      and(
+        eq(attachments.envelopeId, envelope.id),
+        eq(attachments.fieldId, field.id),
+        eq(attachments.signerId, signer.id),
+      ),
+    );
+  const [row] = await db
+    .insert(attachments)
+    .values({
+      envelopeId: envelope.id,
+      signerId: signer.id,
+      fieldId: field.id,
+      filename: input.filename,
+      contentType: input.contentType,
+      storageKey,
+      byteSize: bytes.length,
+    })
+    .returning({ id: attachments.id, filename: attachments.filename });
+  if (!row) {
+    throw new HttpProblem({
+      status: 500,
+      title: 'Internal Server Error',
+      detail: 'Could not store the attachment.',
+    });
+  }
+  await recordEvent(db, {
+    envelopeId: envelope.id,
+    signerId: signer.id,
+    type: 'field_completed',
+    actor: 'signer',
+    actorId: signer.id,
+    ipAddress: ctx.ip,
+    userAgent: ctx.ua,
+    metadata: { fieldId: field.id, attachment: input.filename, byteSize: bytes.length },
+  });
+  return { id: row.id, filename: row.filename };
 }
 
 export async function completeSigning(

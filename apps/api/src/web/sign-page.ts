@@ -397,6 +397,39 @@ let usingOverlay = false;
 
 function isSigType(t){ return t === "signature" || t === "stamp" || t === "initials" || t === "name"; }
 function mkInput(type, val){ const i = document.createElement("input"); i.type = type; if (val != null) i.value = val; return i; }
+
+const ATTACH_TYPES = ["application/pdf", "image/png", "image/jpeg"];
+function guessType(name){ const n = (name||"").toLowerCase(); if (n.endsWith(".pdf")) return "application/pdf"; if (n.endsWith(".png")) return "image/png"; if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg"; return ""; }
+function fileToDataUrl(file){ return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file); }); }
+
+// Open a file picker for an attachment field and upload the chosen file. Calls
+// onDone(filename) on success.
+function pickAttachment(f, onDone){
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = ".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg";
+  inp.style.display = "none";
+  document.body.appendChild(inp);
+  inp.addEventListener("change", async () => {
+    const file = inp.files && inp.files[0];
+    inp.remove();
+    if (!file) return;
+    const type = file.type && ATTACH_TYPES.indexOf(file.type) >= 0 ? file.type : guessType(file.name);
+    if (ATTACH_TYPES.indexOf(type) < 0){ alert("Please attach a PDF, PNG, or JPG file."); return; }
+    if (file.size > 10 * 1024 * 1024){ alert("That file is larger than 10 MB."); return; }
+    try {
+      const data = await fileToDataUrl(file);
+      const res = await fetch(api("/attachment"), {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fieldId: f.id, filename: file.name, contentType: type, data }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      fieldValue[f.id] = file.name;
+      onDone(file.name);
+    } catch (e){ alert("Could not upload the file. Please try again."); }
+  });
+  inp.click();
+}
 function markDone(tab, done){ tab.classList.toggle("done", !!done); if (done) tab.classList.remove("required"); else if (tab.dataset.req === "1") tab.classList.add("required"); }
 
 // Render each document's pages with pdf.js, then drop interactive field tabs at
@@ -504,6 +537,14 @@ function initTab(tab, f){
     tab.appendChild(sel);
     if (fieldValue[f.id]) markDone(tab, true);
     sel.addEventListener("change", () => { fieldValue[f.id] = sel.value; markDone(tab, !!sel.value); updateProgress(); });
+    return;
+  }
+  if (t === "attachment"){
+    tab.classList.add("attachtab");
+    const setLabel = (txt) => { tab.innerHTML = '<span class="ph">' + esc("\\uD83D\\uDCCE " + txt) + '</span>'; };
+    setLabel(fieldValue[f.id] || "Attach");
+    if (fieldValue[f.id]) markDone(tab, true);
+    tab.addEventListener("click", () => pickAttachment(f, (name) => { setLabel(name); markDone(tab, true); updateProgress(); }));
     return;
   }
   const inp = mkInput("text", fieldValue[f.id] || ""); tab.appendChild(inp);
@@ -689,6 +730,8 @@ function renderFormSigning(){
     } else if (f.type === "radio") {
       const radios = (f.options||[]).map(function(o,i){return '<label class="check" style="margin-right:12px"><input type="radio" name="'+id+'" value="'+esc(o)+'"> '+esc(o)+'</label>';}).join("");
       html += '<div class="field"><label>Choose'+(f.required?" (required)":"")+'</label><div id="'+id+'">'+radios+'</div></div>';
+    } else if (f.type === "attachment") {
+      html += '<div class="field"><label>Attachment'+(f.required?" (required)":"")+'</label><button type="button" class="btn-ghost" id="att_'+f.id+'" style="margin-top:0">\\uD83D\\uDCCE Attach file</button></div>';
     } else {
       html += fieldWrap(id, "Text" + (f.required?" (required)":""), '<input type="text" id="'+id+'">');
     }
@@ -704,6 +747,12 @@ function renderFormSigning(){
   $("fullName").addEventListener("input", (e) => { $("sigPreview").textContent = e.target.value; });
   $("signBtn").addEventListener("click", () => reviewSign(myFields));
   $("declineBtn").addEventListener("click", submitDecline);
+  for (const f of myFields){
+    if (f.type === "attachment"){
+      const btn = $("att_" + f.id);
+      if (btn) btn.addEventListener("click", () => pickAttachment(f, (name) => { btn.textContent = "\\uD83D\\uDCCE " + name; }));
+    }
+  }
   // Conditional fields: re-evaluate visibility on any change.
   $("panel").addEventListener("input", () => recomputeConditions(myFields));
   $("panel").addEventListener("change", () => recomputeConditions(myFields));
@@ -783,6 +832,7 @@ function reviewSign(myFields){
     if (f.type === "signature" || f.type === "stamp") v = signatureValue || fullName;
     else if (f.type === "name") v = fullName;
     else if (f.type === "initials") v = initials;
+    else if (f.type === "attachment") v = fieldValue[f.id] || "";
     else if (f.type === "radio") {
       const checked = document.querySelector('input[name="f_' + f.id + '"]:checked');
       v = checked ? checked.value : "";
