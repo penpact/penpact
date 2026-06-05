@@ -3,11 +3,15 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { logger as log } from './lib/logger.js';
 import { problemErrorHandler } from './lib/problem.js';
+import { getDb } from './db.js';
+import { rateLimit } from './middleware/rate-limit.js';
 import { requestId } from './middleware/request-id.js';
 import { dashboard } from './routes/dashboard.js';
 import { v1 } from './routes/v1.js';
+import { startDemo } from './services/demo.js';
 import { startReminderWorker } from './services/reminder-worker.js';
 import { startWebhookWorker } from './services/webhook-worker.js';
+import { getStorage } from './storage/index.js';
 import type { AppEnv } from './types.js';
 import { builderPageHtml } from './web/builder-page.js';
 import { dashboardPageHtml } from './web/dashboard-page.js';
@@ -39,6 +43,14 @@ app.get('/s/:slug', (c) => c.html(publicTemplatePageHtml()));
 
 // Visual field builder (cookie session; calls /dashboard/* itself).
 app.get('/builder', (c) => c.html(builderPageHtml()));
+
+// One-click live demo: spin a fresh signing session from a sample contract and
+// send the visitor straight to the hosted signing page. No account, no install.
+app.use('/demo', rateLimit({ windowMs: 60_000, max: 30 }));
+app.get('/demo', async (c) => {
+  const token = await startDemo(getDb(), getStorage());
+  return c.redirect(`/sign/${token}`, 302);
+});
 
 app.route('/v1', v1);
 

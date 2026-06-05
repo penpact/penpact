@@ -10,9 +10,11 @@ Point it at any PDF, place fields by hand or with AI, drop a themeable signing f
 [![Status: early development](https://img.shields.io/badge/status-early%20development-orange.svg)](#status)
 [![Made with TypeScript](https://img.shields.io/badge/made%20with-TypeScript-3178c6.svg)](#)
 
-[Website](https://penpact.dev) · [Docs](https://penpact.dev/e-signature-api) · [Blog](https://penpact.dev/blog) · [Pricing](https://penpact.dev/pricing) · [Compare](https://penpact.dev/open-source-docusign-alternative)
+[**▶ Try the live signer demo**](https://api.penpact.dev/demo) (no signup) · [Website](https://penpact.dev) · [Docs](https://penpact.dev/e-signature-api) · [Blog](https://penpact.dev/blog) · [Pricing](https://penpact.dev/pricing) · [Compare](https://penpact.dev/open-source-docusign-alternative)
 
 </div>
+
+<p align="center"><a href="https://api.penpact.dev/demo"><img src="docs/assets/penpact-demo.gif" alt="Signing a document with Penpact: fields placed on the PDF, adopt a signature, review, sealed" width="100%"></a></p>
 
 <p align="center"><img src="docs/assets/flow.svg" alt="Penpact signing flow: create envelope, place fields (manual or AI), send, sign with consent, PAdES seal, certificate + webhook" width="100%"></p>
 
