@@ -665,9 +665,11 @@ function renderSignPanel(){
     '<div class="err" id="err"></div>' +
     '<button class="btn-primary" id="primaryBtn">Start</button>' +
     '<button class="btn-ghost" id="declineBtn">' + esc(tr("declineButton")) + '</button>' +
+    '<button class="btn-ghost" id="reassignBtn">Not the right signer?</button>' +
     '<p class="legal">' + esc(tr("legalLine")) + '</p>';
   $("primaryBtn").addEventListener("click", onPrimary);
   $("declineBtn").addEventListener("click", submitDecline);
+  $("reassignBtn").addEventListener("click", openReassignModal);
 }
 
 function focusTab(f){
@@ -741,12 +743,14 @@ function renderFormSigning(){
     '<div class="err" id="err"></div>' +
     '<button class="btn-primary" id="signBtn">' + esc(tr('reviewButton')) + '</button>' +
     '<button class="btn-ghost" id="declineBtn">' + esc(tr('declineButton')) + '</button>' +
+    '<button class="btn-ghost" id="reassignBtn">Not the right signer?</button>' +
     '<p class="legal">' + esc(tr('legalLine')) + '</p>';
 
   $("panel").innerHTML = html;
   $("fullName").addEventListener("input", (e) => { $("sigPreview").textContent = e.target.value; });
   $("signBtn").addEventListener("click", () => reviewSign(myFields));
   $("declineBtn").addEventListener("click", submitDecline);
+  $("reassignBtn").addEventListener("click", openReassignModal);
   for (const f of myFields){
     if (f.type === "attachment"){
       const btn = $("att_" + f.id);
@@ -890,6 +894,41 @@ async function doSubmit(values){
     if (err) err.textContent = "Could not submit your signature. Please try again.";
     if (btn){ btn.disabled = false; btn.textContent = tr('finishButton'); }
   }
+}
+
+function openReassignModal(){
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML =
+    '<div class="modal">' +
+      '<h2>Reassign this document</h2>' +
+      '<p class="lead">Send this signing request to the right person. Your own link will stop working.</p>' +
+      '<div class="field"><label for="raName">Their full name</label><input type="text" id="raName" autocomplete="name"></div>' +
+      '<div class="field"><label for="raEmail">Their email</label><input type="email" id="raEmail" autocomplete="email"></div>' +
+      '<div class="field"><label for="raReason">Reason (optional)</label><input type="text" id="raReason"></div>' +
+      '<div class="err" id="raErr"></div>' +
+      '<div class="row">' +
+        '<button class="btn-ghost" id="raCancel" style="margin-top:0">Cancel</button>' +
+        '<button class="btn-primary" id="raSend" style="margin-top:0">Reassign</button>' +
+      '</div></div>';
+  document.body.appendChild(back);
+  $("raCancel").addEventListener("click", () => back.remove());
+  $("raSend").addEventListener("click", async () => {
+    const name = ($("raName").value || "").trim();
+    const email = ($("raEmail").value || "").trim();
+    if (!name || !email){ $("raErr").textContent = "Enter the person's name and email."; return; }
+    const reason = ($("raReason").value || "").trim() || undefined;
+    const btn = $("raSend"); btn.disabled = true; $("raErr").textContent = "";
+    try {
+      const res = await fetch(api("/reassign"), {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify(reason ? { name, email, reason } : { name, email }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      back.remove();
+      showState("ok", "Reassigned.", "We've sent this document to " + name + ". You can close this page.");
+    } catch (e){ $("raErr").textContent = "Could not reassign. Please try again."; btn.disabled = false; }
+  });
 }
 
 async function submitDecline(){

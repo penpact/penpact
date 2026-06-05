@@ -23,6 +23,7 @@ import {
   placeFieldsSchema,
   placeTemplateFieldsSchema,
   publicStartSchema,
+  reassignSchema,
   templateCreateSchema,
   voidSchema,
 } from '../schemas.js';
@@ -49,6 +50,7 @@ import {
   getSignerDocument,
   getSigningSession,
   previewSigning,
+  reassignSigner,
   uploadAttachment,
 } from '../services/signing.js';
 import {
@@ -262,6 +264,13 @@ signRoute.post('/:token/preview', validateJson(completeSchema), async (c) => {
     c.req.valid('json').fields,
   );
   return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
+});
+
+// Signer delegates their signing to a different person.
+signRoute.post('/:token/reassign', validateJson(reassignSchema), async (c) => {
+  return c.json(
+    await reassignSigner(c.get('db'), c.req.param('token'), c.req.valid('json'), reqCtx(c)),
+  );
 });
 
 // Signer uploads a file against one of their attachment fields.

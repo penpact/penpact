@@ -115,6 +115,12 @@ export const attachmentSchema = z.object({
   data: z.string().min(1).max(20_000_000),
 });
 
+export const reassignSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.string().email().max(254),
+  reason: z.string().max(500).optional(),
+});
+
 export const declineSchema = z.object({
   reason: z.string().max(500).optional(),
 });
@@ -171,6 +177,7 @@ export type InstantiateInput = z.infer<typeof instantiateTemplateSchema>;
 export type CompleteInput = z.infer<typeof completeSchema>;
 export type DeclineInput = z.infer<typeof declineSchema>;
 export type AttachmentInput = z.infer<typeof attachmentSchema>;
+export type ReassignInput = z.infer<typeof reassignSchema>;
 
 // ─── Dashboard auth ───
 export const credentialsSchema = z.object({

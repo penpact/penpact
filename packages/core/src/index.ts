@@ -82,6 +82,7 @@ export const AUDIT_EVENT_TYPES = [
   'completed',
   'copy_delivered',
   'voided',
+  'reassigned',
 ] as const;
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
 

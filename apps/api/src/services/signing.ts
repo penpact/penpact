@@ -11,10 +11,10 @@ import {
 } from '@penpact/db';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { CONSENT_DISCLOSURE } from '../consent.js';
-import { sha256Hex } from '../lib/crypto.js';
+import { generateSigningToken, sha256Hex } from '../lib/crypto.js';
 import { planLimits } from '../lib/plans.js';
 import { HttpProblem } from '../lib/problem.js';
-import type { AttachmentInput, CompleteInput, DeclineInput } from '../schemas.js';
+import type { AttachmentInput, CompleteInput, DeclineInput, ReassignInput } from '../schemas.js';
 import type { Storage } from '../storage/index.js';
 import { buildOtpEmail, sendEmail, sendSigningInvite } from './email.js';
 import {
@@ -502,6 +502,74 @@ export async function uploadAttachment(
     metadata: { fieldId: field.id, attachment: input.filename, byteSize: bytes.length },
   });
   return { id: row.id, filename: row.filename };
+}
+
+/**
+ * Reassign (delegate) this signing slot to a different person. The signer who
+ * received the document says "this is not for me" and forwards it. The original
+ * link is invalidated (a new token is minted), consent/auth state is reset, and
+ * the new signer is emailed. Field placements (bound to the signer row) carry
+ * over unchanged.
+ */
+export async function reassignSigner(
+  db: Database,
+  token: string,
+  input: ReassignInput,
+  ctx: RequestContext,
+): Promise<{ name: string; email: string }> {
+  const { signer, envelope } = await loadByToken(db, token);
+  if (envelopeClosed(envelope)) gone();
+  if (signerDone(signer)) {
+    throw new HttpProblem({
+      status: 409,
+      title: 'Conflict',
+      detail: 'You have already responded to this document.',
+    });
+  }
+
+  const newToken = generateSigningToken();
+  await db
+    .update(signers)
+    .set({
+      name: input.name,
+      email: input.email,
+      signingToken: newToken,
+      status: 'pending',
+      consentGiven: false,
+      authPassedAt: null,
+      otpHash: null,
+      otpExpiresAt: null,
+      otpAttempts: 0,
+    })
+    .where(eq(signers.id, signer.id));
+
+  await recordEvent(db, {
+    envelopeId: envelope.id,
+    signerId: signer.id,
+    type: 'reassigned',
+    actor: 'signer',
+    actorId: signer.id,
+    ipAddress: ctx.ip,
+    userAgent: ctx.ua,
+    metadata: {
+      fromName: signer.name,
+      fromEmail: signer.email,
+      toName: input.name,
+      toEmail: input.email,
+      reason: input.reason ?? null,
+    },
+  });
+
+  const base = process.env.PUBLIC_BASE_URL ?? '';
+  await sendSigningInvite({
+    to: input.email,
+    signerName: input.name,
+    documentName: envelope.documentName,
+    signUrl: `${base}/sign/${newToken}`,
+    locale: envelope.locale,
+  });
+
+  return { name: input.name, email: input.email };
 }
 
 export async function completeSigning(
