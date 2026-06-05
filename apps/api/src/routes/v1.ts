@@ -47,6 +47,7 @@ import {
   declineSigning,
   getSignerDocument,
   getSigningSession,
+  previewSigning,
 } from '../services/signing.js';
 import {
   bulkSendTemplate,
@@ -247,6 +248,18 @@ signRoute.post('/:token/consent', validateJson(consentSchema), async (c) => {
     reqCtx(c),
   );
   return c.body(null, 204);
+});
+
+// Server-rendered preview: flatten the signer's proposed values into the PDF
+// (same renderer as the final seal, no PAdES) so they can review before finishing.
+signRoute.post('/:token/preview', validateJson(completeSchema), async (c) => {
+  const bytes = await previewSigning(
+    c.get('db'),
+    getStorage(),
+    c.req.param('token'),
+    c.req.valid('json').fields,
+  );
+  return new Response(bytes, { headers: { 'Content-Type': 'application/pdf' } });
 });
 
 signRoute.post('/:token/complete', validateJson(completeSchema), async (c) => {

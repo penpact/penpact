@@ -24,6 +24,7 @@ import {
   toSignerResponse,
 } from './envelopes.js';
 import { recordEvent } from './events.js';
+import { buildMergedFinalPdf } from './pdf.js';
 import { activeOrder, isActiveSigner } from './routing.js';
 import { finalizeEnvelope } from './sealing.js';
 import { buildCompletedEvent, buildDeclinedEvent, enqueueEnvelopeEvent } from './webhooks.js';
@@ -650,6 +651,51 @@ export async function getSignerDocument(
     throw new HttpProblem({ status: 404, title: 'Not Found', detail: 'No document available.' });
   }
   return storage.get(doc.storageKey);
+}
+
+/**
+ * Render a preview of the document with this signer's proposed values flattened
+ * in place, using the same renderer as the final seal (no PAdES signature). Lets
+ * the signer see exactly how their signature will appear before finishing —
+ * server-side, so it never depends on the browser loading a PDF library.
+ */
+export async function previewSigning(
+  db: Database,
+  storage: Storage,
+  token: string,
+  inputValues: Array<{ fieldId: string; value: string }>,
+): Promise<Uint8Array> {
+  const { signer, envelope } = await loadByToken(db, token);
+  requireAuthPassed(signer);
+
+  const sourceRows = await db
+    .select({ id: documents.id, storageKey: documents.storageKey })
+    .from(documents)
+    .where(and(eq(documents.envelopeId, envelope.id), eq(documents.isFinal, false)))
+    .orderBy(asc(documents.position), asc(documents.createdAt));
+  if (sourceRows.length === 0) {
+    throw new HttpProblem({ status: 409, title: 'Conflict', detail: 'No document to preview.' });
+  }
+  const sources = await Promise.all(
+    sourceRows.map(async (s) => ({ documentId: s.id, bytes: await storage.get(s.storageKey) })),
+  );
+
+  const fieldRows = await db.select().from(fields).where(eq(fields.envelopeId, envelope.id));
+  const overrides = new Map(inputValues.map((v) => [v.fieldId, v.value]));
+  const mergeFields = fieldRows.map((f) => ({
+    documentId: f.documentId,
+    page: f.page,
+    x: f.x,
+    y: f.y,
+    width: f.width,
+    height: f.height,
+    type: f.type,
+    // Only the current signer may preview their own field values.
+    value:
+      f.signerId === signer.id && overrides.has(f.id) ? (overrides.get(f.id) ?? f.value) : f.value,
+  }));
+
+  return buildMergedFinalPdf(sources, mergeFields);
 }
 
 async function reloadSigner(db: Database, signerId: string): Promise<SignerResponse> {

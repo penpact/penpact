@@ -425,24 +425,13 @@ function reviewSign(myFields){
     if (f.required && !v) { err.textContent = "Please complete all required fields."; return; }
     if (v) values.push({ fieldId: f.id, value: v });
   }
-  renderReview(myFields, values);
+  renderReview(values);
 }
 
-let _pdfjs = null;
-async function loadPdfjs(){
-  if (_pdfjs) return _pdfjs;
-  const m = await import("https://esm.sh/pdfjs-dist@4.7.76/build/pdf.min.mjs");
-  m.GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
-  _pdfjs = m;
-  return m;
-}
-
-// Render the document(s) with the signer's values drawn in place, so they see
-// exactly how their signature will look before they finish.
-async function renderReview(myFields, values){
-  const valueById = {};
-  for (const v of values) valueById[v.fieldId] = v.value;
-
+// Show a server-rendered preview: the API flattens the signer's values into the
+// document with the SAME renderer as the final seal, so the preview is exact and
+// never depends on the browser loading a PDF library.
+async function renderReview(values){
   $("panel").innerHTML =
     '<h2>' + esc(tr('reviewTitle')) + '</h2>' +
     '<p class="lead">' + esc(tr('reviewHint')) + '</p>' +
@@ -454,46 +443,16 @@ async function renderReview(myFields, values){
 
   const viewer = $("viewer");
   viewer.innerHTML = '<div style="color:#9aa3b2;padding:40px;text-align:center">Preparing preview…</div>';
-  let pdfjs;
-  try { pdfjs = await loadPdfjs(); }
-  catch(e){ viewer.innerHTML = '<div style="color:#9aa3b2;padding:30px;text-align:center">Preview unavailable here, but your fields are ready — press ' + esc(tr('finishButton')) + '.</div>'; return; }
-
-  const docs = (session.documents && session.documents.length)
-    ? session.documents
-    : [{ id: null, documentUrl: api("/document") }];
-  viewer.innerHTML = "";
-  const vw = Math.max(320, viewer.clientWidth - 28);
-  for (const doc of docs){
-    let buf;
-    try { buf = await (await fetch(doc.documentUrl, { headers: { accept: "application/pdf" } })).arrayBuffer(); }
-    catch(e){ continue; }
-    const pdf = await pdfjs.getDocument({ data: buf }).promise;
-    for (let p=1; p<=pdf.numPages; p++){
-      const page = await pdf.getPage(p);
-      const scale = Math.min(1.6, vw / page.getViewport({ scale: 1 }).width);
-      const viewport = page.getViewport({ scale });
-      const wrap = document.createElement("div");
-      wrap.style.cssText = "position:relative;margin:14px auto;width:" + viewport.width + "px;box-shadow:0 0 0 1px var(--line)";
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width; canvas.height = viewport.height; canvas.style.display = "block";
-      wrap.appendChild(canvas); viewer.appendChild(wrap);
-      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-      for (const f of myFields){
-        if (f.page !== p) continue;
-        if (doc.id && f.documentId && f.documentId !== doc.id) continue;
-        const val = valueById[f.id];
-        if (val == null || val === "") continue;
-        const box = document.createElement("div");
-        box.style.cssText = "position:absolute;left:" + (f.x*scale) + "px;top:" + (f.y*scale) + "px;width:" + (f.width*scale) + "px;height:" + (f.height*scale) + "px;display:flex;align-items:center;overflow:hidden;outline:1px dashed color-mix(in srgb,var(--brand) 55%,transparent)";
-        if (val.indexOf("data:image") === 0){
-          box.innerHTML = '<img src="' + val + '" style="max-width:100%;max-height:100%;object-fit:contain">';
-        } else {
-          const fs = Math.max(9, Math.min(15, f.height*scale*0.62));
-          box.innerHTML = '<span style="color:#111;font-size:' + fs + 'px;white-space:nowrap">' + esc(val) + '</span>';
-        }
-        wrap.appendChild(box);
-      }
-    }
+  try {
+    const res = await fetch(api("/preview"), {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ signatureType: signMode === "draw" ? "drawn" : "typed", fields: values }),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const url = URL.createObjectURL(await res.blob());
+    viewer.innerHTML = '<iframe class="docframe" title="Signed preview" src="' + url + '#toolbar=0&view=FitH"></iframe>';
+  } catch (e) {
+    viewer.innerHTML = '<div style="color:#9aa3b2;padding:30px;text-align:center">Could not load the preview, but your fields are ready — press ' + esc(tr('finishButton')) + '.</div>';
   }
 }
 
