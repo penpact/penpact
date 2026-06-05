@@ -156,6 +156,32 @@ function esc(s){ const d=document.createElement("div"); d.textContent=s==null?""
 function initialsOf(name){ return (name||"").split(/\\s+/).filter(Boolean).map(w=>w[0]).join("").toUpperCase().slice(0,4); }
 function today(){ const d=new Date(); return d.toISOString().slice(0,10); }
 
+// Crop the drawn signature to the bounding box of its ink, so its position in the
+// field is consistent no matter where on the canvas the signer drew. Returns a
+// PNG data URL of just the strokes (with a little padding), or null if blank.
+function trimmedSignaturePng(canvas){
+  const w = canvas.width, h = canvas.height;
+  const data = canvas.getContext("2d").getImageData(0, 0, w, h).data;
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let y = 0; y < h; y++){
+    for (let x = 0; x < w; x++){
+      if (data[(y * w + x) * 4 + 3] > 12){
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null; // nothing drawn
+  const pad = 8;
+  minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+  maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
+  const cw = maxX - minX + 1, ch = maxY - minY + 1;
+  const out = document.createElement("canvas");
+  out.width = cw; out.height = ch;
+  out.getContext("2d").drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
+  return out.toDataURL("image/png");
+}
+
 const I18N = ${JSON.stringify(TRANSLATIONS)};
 function loc(){ return (session && session.locale) || "en"; }
 function tr(key, vars){
@@ -404,7 +430,8 @@ function reviewSign(myFields){
   let signatureValue = null;
   if (signMode === "draw") {
     if (!signDrawn || !signCanvas) { err.textContent = "Draw your signature, or switch to Type."; return; }
-    signatureValue = signCanvas.toDataURL("image/png");
+    signatureValue = trimmedSignaturePng(signCanvas);
+    if (!signatureValue) { err.textContent = "Draw your signature, or switch to Type."; return; }
   }
 
   const values = [];
