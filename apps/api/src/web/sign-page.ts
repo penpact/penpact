@@ -106,6 +106,45 @@ button {
 .legal { color: var(--muted-2); font-size: 11.5px; margin: 15px 0 0; line-height: 1.5; }
 .err { color: var(--danger); font-size: 13px; margin-top: 11px; min-height: 18px; }
 
+/* In-context overlay signing (P0) */
+.pages { padding: 22px 18px 60px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.docLabel { color: var(--muted); font-size: 12px; align-self: center; margin-top: 6px; letter-spacing: 0.02em; text-transform: uppercase; }
+.pageWrap { position: relative; width: max-content; border-radius: 6px; overflow: hidden; box-shadow: 0 10px 34px -16px rgba(0,0,0,0.75); }
+.pageWrap canvas { display: block; }
+.ftab {
+  position: absolute; cursor: pointer; box-sizing: border-box;
+  border: 1.5px dashed color-mix(in srgb, var(--brand) 70%, #fff);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--brand) 80%, #000);
+  overflow: hidden; transition: box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.ftab .ph { pointer-events: none; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; padding: 0 4px; }
+.ftab.required:not(.done) { border-color: #c79200; background: color-mix(in srgb, #f4c430 30%, transparent); color: #6f5500; }
+.ftab.active { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 45%, transparent), 0 4px 14px -4px rgba(0,0,0,0.4); border-style: solid; }
+.ftab.done { border: 1px solid color-mix(in srgb, var(--ok) 55%, transparent); background: transparent; color: #111; }
+.ftab img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.ftab .filled { color: #111; line-height: 1; white-space: nowrap; }
+.ftab .filledsig { font-family: "Snell Roundhand", "Brush Script MT", "Segoe Script", cursive; color: #111; line-height: 1; }
+.ftab input, .ftab select {
+  width: 100%; height: 100%; border: 0; background: transparent; font: inherit;
+  color: #111; padding: 0 5px; text-align: center; outline: 0; font-size: 12px;
+}
+.ftab.cbtab .cbmark { width: 70%; height: 70%; }
+.ftab.checked .cbmark::before { content: "\\2713"; color: #111; font-size: 15px; font-weight: 700; }
+
+/* Adopt-signature modal */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(2,3,6,0.62); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 20px; animation: fadeUp 0.25s ease both; }
+.modal { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line-2); border-radius: 16px; padding: 24px; max-width: 460px; width: 100%; box-shadow: 0 30px 80px -30px rgba(0,0,0,0.8); }
+.modal h2 { margin-bottom: 4px; }
+.modal .row { display: flex; gap: 10px; margin-top: 18px; }
+.modal .row .btn-primary, .modal .row .btn-ghost { margin-top: 0; }
+
+/* Sign panel progress */
+.prog { display: flex; align-items: center; gap: 10px; margin: 4px 0 16px; color: var(--muted); font-size: 13px; }
+.prog .bar { flex: 1; height: 6px; border-radius: 999px; background: var(--field); overflow: hidden; }
+.prog .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand), var(--ok)); width: 0; transition: width 0.3s ease; }
+
 /* Final states (signed / declined / unavailable) */
 .state { max-width: 440px; margin: 12vh auto; padding: 0 24px; text-align: center; animation: fadeUp 0.6s cubic-bezier(0.2,0.7,0.2,1) both; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
@@ -196,6 +235,15 @@ let signMode = "type";
 let signDrawn = false;
 let signCanvas = null;
 
+// Overlay signing (P0) state.
+const SCALE = 1.4;
+let myFields = [];          // this signer's fields
+let fieldValue = {};        // fieldId -> string value (text or PNG data URL)
+let adopted = false;        // has the signer adopted a signature yet
+let adoptedName = "";       // full legal name
+let adoptedSig = null;      // drawn-signature PNG data URL, or null when typed
+let cssEsc = (s) => String(s).replace(/["\\\\\\]]/g, "\\\\$&");
+
 async function load(){
   try {
     const res = await fetch(api(""), { headers: { accept: "application/json" } });
@@ -243,6 +291,20 @@ function applyBranding(){
   }
 }
 
+function sessionDocs(){
+  return (session.documents && session.documents.length)
+    ? session.documents
+    : [{ id: null, documentUrl: api("/document"), pageCount: null }];
+}
+
+// Read-only iframe viewer (browser PDF). Used for the auth/consent phases, the
+// final preview, and as the fallback when pdf.js cannot load.
+function showIframeViewer(){
+  $("viewer").innerHTML = sessionDocs().map((d, i) =>
+    '<iframe class="docframe" title="Document ' + (i + 1) + '" src="' + esc(d.documentUrl) + '#toolbar=1&view=FitH"></iframe>'
+  ).join("");
+}
+
 function render(){
   applyBranding();
   $("docName").textContent = session.documentName || "Document";
@@ -251,13 +313,29 @@ function render(){
     renderAuth();
     return;
   }
-  const docs = (session.documents && session.documents.length)
-    ? session.documents
-    : [{ documentUrl: api("/document") }];
-  $("viewer").innerHTML = docs.map((d, i) =>
-    '<iframe class="docframe" title="Document ' + (i + 1) + '" src="' + esc(d.documentUrl) + '#toolbar=1&view=FitH"></iframe>'
-  ).join("");
-  if (session.consentRequired) renderConsent(); else renderSign();
+  if (session.consentRequired){ showIframeViewer(); renderConsent(); return; }
+  startSigning();
+}
+
+// Try the in-context overlay UX (fields placed on the document, guided
+// navigation). If pdf.js fails to load or render for any reason, fall back to
+// the dependency-free side-form so signing never breaks.
+async function startSigning(){
+  myFields = (session.fields || []).filter(f => f.signerId === session.signer.id);
+  fieldValue = {}; adopted = false; adoptedName = session.signer.name || ""; adoptedSig = null;
+  try {
+    await renderOverlaySigning();
+  } catch (e) {
+    try { console.error("overlay signing failed, using form fallback", e); } catch (_e) {}
+    renderFormSigning();
+  }
+}
+
+// Return to the overlay from the review step WITHOUT resetting captured values
+// or the adopted signature (re-renders pages, re-seeds tabs from fieldValue).
+async function reenterSigning(){
+  try { await renderOverlaySigning(); }
+  catch (e) { renderFormSigning(); }
 }
 
 function renderAuth(){
@@ -308,14 +386,278 @@ async function submitConsent(hash){
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     session.consentRequired = false;
-    renderSign();
+    startSigning();
   } catch (e) {
     $("err").textContent = "Could not record your consent. Please try again.";
     btn.disabled = false;
   }
 }
 
-function renderSign(){
+let usingOverlay = false;
+
+function isSigType(t){ return t === "signature" || t === "stamp" || t === "initials" || t === "name"; }
+function mkInput(type, val){ const i = document.createElement("input"); i.type = type; if (val != null) i.value = val; return i; }
+function markDone(tab, done){ tab.classList.toggle("done", !!done); if (done) tab.classList.remove("required"); else if (tab.dataset.req === "1") tab.classList.add("required"); }
+
+// Render each document's pages with pdf.js, then drop interactive field tabs at
+// the stored coordinates. Throws if pdf.js cannot load (caller falls back).
+async function renderOverlaySigning(){
+  const pdfjs = await import("https://esm.sh/pdfjs-dist@4.7.76/build/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+  const docs = sessionDocs();
+  $("viewer").innerHTML = '<div class="pages" id="pages"><div style="color:#9aa3b2;padding:40px;text-align:center">Loading document\\u2026</div></div>';
+  const pages = $("pages");
+  pages.innerHTML = "";
+  for (let di = 0; di < docs.length; di++){
+    const d = docs[di];
+    if (docs.length > 1){
+      const lbl = document.createElement("div");
+      lbl.className = "docLabel";
+      lbl.textContent = "Document " + (di + 1) + " of " + docs.length;
+      pages.appendChild(lbl);
+    }
+    const buf = await (await fetch(d.documentUrl)).arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: buf }).promise;
+    for (let p = 1; p <= pdf.numPages; p++){
+      const page = await pdf.getPage(p);
+      const viewport = page.getViewport({ scale: SCALE });
+      const wrap = document.createElement("div");
+      wrap.className = "pageWrap";
+      wrap.setAttribute("data-page", String(p));
+      if (d.id) wrap.setAttribute("data-document", d.id);
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      wrap.appendChild(canvas);
+      pages.appendChild(wrap);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport: viewport }).promise;
+    }
+  }
+  placeTabs(docs);
+  renderSignPanel();
+  updateProgress();
+  usingOverlay = true;
+}
+
+function placeTabs(docs){
+  const multiDoc = docs.length > 1 && !!docs[0].id;
+  for (const f of myFields){
+    let sel = '.pageWrap[data-page="' + f.page + '"]';
+    if (multiDoc && f.documentId) sel += '[data-document="' + cssEsc(f.documentId) + '"]';
+    let wrap = document.querySelector(sel);
+    if (!wrap) wrap = document.querySelector('.pageWrap[data-page="' + f.page + '"]');
+    if (!wrap) continue;
+    const tab = document.createElement("div");
+    tab.className = "ftab" + (f.required ? " required" : "");
+    tab.id = "tab_" + f.id;
+    if (f.required) tab.dataset.req = "1";
+    tab.style.left = (f.x * SCALE) + "px";
+    tab.style.top = (f.y * SCALE) + "px";
+    tab.style.width = (f.width * SCALE) + "px";
+    tab.style.height = (f.height * SCALE) + "px";
+    wrap.appendChild(tab);
+    initTab(tab, f);
+  }
+}
+
+function initTab(tab, f){
+  const t = f.type;
+  if (isSigType(t)){
+    const ph = t === "initials" ? "Initials" : (t === "name" ? "Name" : "\\u270D\\uFE0F Sign");
+    tab.innerHTML = '<span class="ph">' + esc(ph) + '</span>';
+    tab.addEventListener("click", () => { if (!adopted) openAdoptModal(); else fillAdoptTabs(); });
+    if (adopted) renderAdoptInto(tab, f);
+    return;
+  }
+  if (t === "date"){
+    fieldValue[f.id] = fieldValue[f.id] || today();
+    const inp = mkInput("date", fieldValue[f.id]); tab.appendChild(inp);
+    inp.addEventListener("input", () => { fieldValue[f.id] = inp.value; markDone(tab, !!inp.value); updateProgress(); });
+    markDone(tab, !!fieldValue[f.id]);
+    return;
+  }
+  if (t === "email"){
+    if (fieldValue[f.id] == null) fieldValue[f.id] = session.signer.email || "";
+    const inp = mkInput("email", fieldValue[f.id]); tab.appendChild(inp);
+    inp.addEventListener("input", () => { fieldValue[f.id] = inp.value.trim(); markDone(tab, !!fieldValue[f.id]); updateProgress(); });
+    markDone(tab, !!fieldValue[f.id]);
+    return;
+  }
+  if (t === "checkbox"){
+    tab.classList.add("cbtab");
+    tab.innerHTML = '<span class="cbmark"></span>';
+    if (fieldValue[f.id] === "Yes"){ tab.classList.add("checked"); markDone(tab, true); }
+    tab.addEventListener("click", () => {
+      const on = fieldValue[f.id] !== "Yes";
+      fieldValue[f.id] = on ? "Yes" : "";
+      tab.classList.toggle("checked", on);
+      markDone(tab, on);
+      updateProgress();
+    });
+    return;
+  }
+  if (t === "dropdown" || t === "radio"){
+    const sel = document.createElement("select");
+    let html = '<option value="">Select\\u2026</option>';
+    for (const o of (f.options || [])) html += '<option value="' + esc(o) + '">' + esc(o) + '</option>';
+    sel.innerHTML = html;
+    if (fieldValue[f.id]) sel.value = fieldValue[f.id];
+    tab.appendChild(sel);
+    if (fieldValue[f.id]) markDone(tab, true);
+    sel.addEventListener("change", () => { fieldValue[f.id] = sel.value; markDone(tab, !!sel.value); updateProgress(); });
+    return;
+  }
+  const inp = mkInput("text", fieldValue[f.id] || ""); tab.appendChild(inp);
+  if (fieldValue[f.id]) markDone(tab, true);
+  inp.addEventListener("input", () => { fieldValue[f.id] = inp.value.trim(); markDone(tab, !!fieldValue[f.id]); updateProgress(); });
+}
+
+function renderAdoptInto(tab, f){
+  if (f.type === "name"){
+    fieldValue[f.id] = adoptedName;
+    tab.innerHTML = '<span class="filled">' + esc(adoptedName) + '</span>';
+  } else if (f.type === "initials"){
+    fieldValue[f.id] = initialsOf(adoptedName);
+    tab.innerHTML = '<span class="filled">' + esc(initialsOf(adoptedName)) + '</span>';
+  } else if (adoptedSig){
+    fieldValue[f.id] = adoptedSig;
+    tab.innerHTML = '<img src="' + adoptedSig + '" alt="signature">';
+  } else {
+    fieldValue[f.id] = adoptedName;
+    const px = Math.max(11, Math.round(f.height * SCALE * 0.78));
+    tab.innerHTML = '<span class="filledsig" style="font-size:' + px + 'px">' + esc(adoptedName) + '</span>';
+  }
+  markDone(tab, true);
+}
+
+function fillAdoptTabs(){
+  for (const f of myFields){ if (!isSigType(f.type)) continue; const tab = $("tab_" + f.id); if (tab) renderAdoptInto(tab, f); }
+  updateProgress();
+}
+
+function openAdoptModal(){
+  const back = document.createElement("div");
+  back.className = "modal-backdrop";
+  back.innerHTML =
+    '<div class="modal">' +
+      '<h2>' + esc(tr("adoptSignature")) + '</h2>' +
+      '<p class="lead">' + esc(tr("adoptHint")) + '</p>' +
+      '<div class="field"><label for="mName">' + esc(tr("fullName")) + '</label>' +
+        '<input type="text" id="mName" value="' + esc(adoptedName) + '" autocomplete="name"></div>' +
+      '<div class="field"><label>' + esc(tr("signatureLabel")) + '</label>' +
+        '<div class="sigtabs"><button type="button" id="mType" class="active">' + esc(tr("type")) + '</button>' +
+          '<button type="button" id="mDraw">' + esc(tr("draw")) + '</button></div>' +
+        '<div id="mTypeWrap"><div class="sig-preview" id="mPreview">' + esc(adoptedName) + '</div></div>' +
+        '<div id="mDrawWrap" style="display:none">' +
+          '<canvas id="sigCanvas" width="380" height="120"></canvas>' +
+          '<button type="button" class="btn-ghost" id="mClear" style="margin-top:6px">' + esc(tr("clear")) + '</button>' +
+        '</div></div>' +
+      '<div class="err" id="mErr"></div>' +
+      '<div class="row">' +
+        '<button class="btn-ghost" id="mCancel" style="margin-top:0">Cancel</button>' +
+        '<button class="btn-primary" id="mAdopt" style="margin-top:0">' + esc(tr("signButton")) + '</button>' +
+      '</div></div>';
+  document.body.appendChild(back);
+
+  signMode = "type"; signDrawn = false; signCanvas = $("sigCanvas");
+  const ctx = signCanvas.getContext("2d");
+  let drawing = false;
+  function setMode(m){
+    signMode = m;
+    $("mType").classList.toggle("active", m === "type");
+    $("mDraw").classList.toggle("active", m === "draw");
+    $("mTypeWrap").style.display = m === "type" ? "block" : "none";
+    $("mDrawWrap").style.display = m === "draw" ? "block" : "none";
+  }
+  $("mType").addEventListener("click", () => setMode("type"));
+  $("mDraw").addEventListener("click", () => setMode("draw"));
+  $("mName").addEventListener("input", (e) => { $("mPreview").textContent = e.target.value; });
+  signCanvas.addEventListener("pointerdown", (e) => { signCanvas.setPointerCapture(e.pointerId); const r = signCanvas.getBoundingClientRect(); ctx.beginPath(); ctx.moveTo(e.clientX - r.left, e.clientY - r.top); drawing = true; });
+  signCanvas.addEventListener("pointermove", (e) => { if (!drawing) return; const r = signCanvas.getBoundingClientRect(); ctx.lineTo(e.clientX - r.left, e.clientY - r.top); ctx.strokeStyle = "#111"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.stroke(); signDrawn = true; });
+  signCanvas.addEventListener("pointerup", () => { drawing = false; });
+  $("mClear").addEventListener("click", () => { ctx.clearRect(0, 0, signCanvas.width, signCanvas.height); signDrawn = false; });
+  $("mCancel").addEventListener("click", () => back.remove());
+  $("mAdopt").addEventListener("click", () => {
+    const nm = ($("mName").value || "").trim();
+    if (!nm){ $("mErr").textContent = "Enter your full name to sign."; return; }
+    if (signMode === "draw"){
+      if (!signDrawn){ $("mErr").textContent = "Draw your signature, or switch to Type."; return; }
+      const png = trimmedSignaturePng(signCanvas);
+      if (!png){ $("mErr").textContent = "Draw your signature, or switch to Type."; return; }
+      adoptedSig = png;
+    } else { adoptedSig = null; }
+    adoptedName = nm; adopted = true; back.remove(); fillAdoptTabs();
+  });
+}
+
+function recomputeOverlayConditions(){
+  for (const f of myFields){
+    if (!f.condition) continue;
+    const tab = $("tab_" + f.id); if (!tab) continue;
+    const ctrlVal = fieldValue[f.condition.fieldId] || "";
+    tab.style.display = ctrlVal === f.condition.equals ? "" : "none";
+  }
+}
+function tabVisible(f){ const tab = $("tab_" + f.id); return !!tab && tab.style.display !== "none"; }
+function fieldDone(f){ const v = fieldValue[f.id]; return v != null && v !== ""; }
+function requiredVisible(){ return myFields.filter(f => f.required && tabVisible(f)); }
+function nextRequired(){ for (const f of requiredVisible()) if (!fieldDone(f)) return f; return null; }
+
+function updateProgress(){
+  recomputeOverlayConditions();
+  const req = requiredVisible();
+  const total = req.length;
+  const done = req.filter(fieldDone).length;
+  const prog = $("prog");
+  if (prog){
+    const pct = total ? Math.round(done / total * 100) : 100;
+    prog.innerHTML = '<div class="bar"><i style="width:' + pct + '%"></i></div><span>' + done + ' / ' + total + ' required</span>';
+  }
+  const btn = $("primaryBtn");
+  if (btn) btn.textContent = (done >= total) ? tr("reviewButton") : (done === 0 ? "Start" : "Next field");
+}
+
+function renderSignPanel(){
+  $("panel").innerHTML =
+    '<h2>' + esc(tr("signButton")) + '</h2>' +
+    '<p class="lead">Click each highlighted field on the document. The button jumps you to the next one.</p>' +
+    '<div class="prog" id="prog"></div>' +
+    '<div class="err" id="err"></div>' +
+    '<button class="btn-primary" id="primaryBtn">Start</button>' +
+    '<button class="btn-ghost" id="declineBtn">' + esc(tr("declineButton")) + '</button>' +
+    '<p class="legal">' + esc(tr("legalLine")) + '</p>';
+  $("primaryBtn").addEventListener("click", onPrimary);
+  $("declineBtn").addEventListener("click", submitDecline);
+}
+
+function focusTab(f){
+  const tab = $("tab_" + f.id); if (!tab) return;
+  const prev = document.querySelector(".ftab.active"); if (prev) prev.classList.remove("active");
+  tab.classList.add("active");
+  tab.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (isSigType(f.type)){ if (!adopted) setTimeout(openAdoptModal, 320); return; }
+  const ctl = tab.querySelector("input, select");
+  if (ctl) setTimeout(() => ctl.focus(), 320);
+}
+
+function onPrimary(){
+  const err = $("err"); if (err) err.textContent = "";
+  const next = nextRequired();
+  if (next){ focusTab(next); return; }
+  const values = [];
+  for (const f of myFields){
+    if (!tabVisible(f)) continue;
+    const v = fieldValue[f.id];
+    if (f.required && (v == null || v === "")){ if (err) err.textContent = "Please complete all required fields."; focusTab(f); return; }
+    if (v != null && v !== "") values.push({ fieldId: f.id, value: v });
+  }
+  renderReview(values);
+}
+
+// Fallback signer surface: document in a read-only iframe, fields collected as a
+// side-panel form. Used only when pdf.js is unavailable.
+function renderFormSigning(){
+  usingOverlay = false;
+  showIframeViewer();
   const name = session.signer.name || "";
   const myFields = (session.fields || []).filter(f => f.signerId === session.signer.id);
   let html =
@@ -466,7 +808,7 @@ async function renderReview(values){
     '<button class="btn-primary" id="finishBtn">' + esc(tr('finishButton')) + '</button>' +
     '<button class="btn-ghost" id="editBtn">' + esc(tr('editButton')) + '</button>';
   $("finishBtn").addEventListener("click", () => doSubmit(values));
-  $("editBtn").addEventListener("click", () => render());
+  $("editBtn").addEventListener("click", () => { if (usingOverlay) reenterSigning(); else renderFormSigning(); });
 
   const viewer = $("viewer");
   viewer.innerHTML = '<div style="color:#9aa3b2;padding:40px;text-align:center">Preparing preview…</div>';
