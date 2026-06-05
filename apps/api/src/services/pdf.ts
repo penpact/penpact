@@ -61,11 +61,21 @@ async function drawField(
   const png = parsePngDataUrl(field.value);
   if (png) {
     const image = await pdf.embedPng(png);
+    // Fit the signature inside the field box preserving its aspect ratio
+    // ("contain"), never stretching it to fill the box. A signature drawn at
+    // any size renders at its natural proportions, sitting on the line (the
+    // box bottom) and left-aligned, with empty space above/right as needed.
+    const scale =
+      image.width > 0 && image.height > 0
+        ? Math.min(field.width / image.width, field.height / image.height)
+        : 1;
+    const w = image.width * scale;
+    const h = image.height * scale;
     page.drawImage(image, {
       x: field.x,
       y: height - field.y - field.height,
-      width: field.width,
-      height: field.height,
+      width: w,
+      height: h,
     });
     return;
   }
