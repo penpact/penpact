@@ -109,7 +109,7 @@ button {
 /* In-context overlay signing (P0) */
 .pages { padding: 22px 18px 60px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .docLabel { color: var(--muted); font-size: 12px; align-self: center; margin-top: 6px; letter-spacing: 0.02em; text-transform: uppercase; }
-.pageWrap { position: relative; width: max-content; border-radius: 6px; overflow: hidden; box-shadow: 0 10px 34px -16px rgba(0,0,0,0.75); }
+.pageWrap { position: relative; width: max-content; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 10px 34px -16px rgba(0,0,0,0.75); }
 .pageWrap canvas { display: block; }
 .ftab {
   position: absolute; cursor: pointer; box-sizing: border-box;
@@ -458,17 +458,54 @@ async function renderOverlaySigning(){
       wrap.className = "pageWrap";
       wrap.setAttribute("data-page", String(p));
       if (d.id) wrap.setAttribute("data-document", d.id);
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width; canvas.height = viewport.height;
-      wrap.appendChild(canvas);
+      // Size the placeholder to the page now (so field tabs position correctly),
+      // but defer allocating + rendering the canvas until the page scrolls near
+      // the viewport. Eagerly rendering every page would allocate a large canvas
+      // buffer per page and crash the tab on long documents (e.g. 600+ pages).
+      wrap.style.width = viewport.width + "px";
+      wrap.style.height = viewport.height + "px";
+      wrap.__render = (() => {
+        let done = false;
+        return () => {
+          if (done) return;
+          done = true;
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          wrap.insertBefore(canvas, wrap.firstChild);
+          page.render({ canvasContext: canvas.getContext("2d"), viewport: viewport });
+        };
+      })();
       pages.appendChild(wrap);
-      await page.render({ canvasContext: canvas.getContext("2d"), viewport: viewport }).promise;
     }
   }
+  setupLazyRender();
   placeTabs(docs);
   renderSignPanel();
   updateProgress();
   usingOverlay = true;
+}
+
+// Render each page's canvas only when it nears the viewport (keeps memory flat
+// on long documents). Falls back to rendering everything if the browser lacks
+// IntersectionObserver.
+function setupLazyRender(){
+  const wraps = document.querySelectorAll(".pageWrap");
+  if (typeof IntersectionObserver === "undefined"){
+    for (const w of wraps) if (w.__render) w.__render();
+    return;
+  }
+  // Observe against the viewport (root: null). The page content scrolls the
+  // window, not the .viewer element, so observing .viewer would treat every
+  // page as visible and defeat the laziness.
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries){
+      if (!e.isIntersecting) continue;
+      io.unobserve(e.target);
+      if (e.target.__render) e.target.__render();
+    }
+  }, { root: null, rootMargin: "1200px 0px" });
+  for (const w of wraps) io.observe(w);
 }
 
 function placeTabs(docs){

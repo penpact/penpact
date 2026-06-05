@@ -28,11 +28,11 @@ If you are a developer adding signing to a SaaS, Penpact is built for exactly th
 
 ## Features
 
-- **Embeddable signing.** A hosted signing page plus a drop-in, themeable React component. Signers stay in your product, under your brand.
+- **In-document signing.** Signers fill fields placed right on the document, with a guided "next field" flow that walks them through every required spot. Works on a hosted page or a drop-in, themeable React component, all under your brand. Long contracts render page by page as the signer scrolls, so a 600-page PDF opens as fast as a one-pager.
 - **AI field detection.** Point Claude, Gemini, or GPT at a PDF and it proposes signature, name, and date fields for you to adjust. Falls back to no proposals when no provider key is set.
 - **Typed SDK, not a generated blob.** A small, hand-written `@penpact/sdk` (TypeScript) you can read in one sitting, plus generated clients for Python, Go, and PHP.
 - **Evidence built in.** Electronic-records consent (US ESIGN Act), an append-only audit trail with IP and timestamps, a SHA-256 hash, a PAdES digital signature on the sealed PDF, and a Certificate of Completion.
-- **Real workflow.** Templates with variable merge, bulk send via CSV, automated reminders, conditional fields, ten field types, sequential routing, and signer authentication (access code or email OTP).
+- **Real workflow.** Templates with variable merge, bulk send via CSV, automated reminders, conditional fields, eleven field types (including file attachments a signer uploads into the sealed packet), signer delegation, sequential routing, and signer authentication (access code or email OTP).
 - **Teams and webhooks.** Organizations with shared workspaces, plus a durable, HMAC-signed webhook queue.
 - **White-label, free.** Your logo and brand color apply on every tier, including self-host and the free cloud.
 - **No per-seat billing.** Usage-based on the cloud, free forever when you self-host. Signing is a feature of your product, not a per-user tax.
